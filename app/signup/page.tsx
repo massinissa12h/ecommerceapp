@@ -8,34 +8,54 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Mail, Lock } from 'lucide-react'
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 
-
-export default function LoginPage() {
+export default function SignUpPage() {
 
   const router = useRouter();
-  
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const[email,setEmail] = useState("");
+  const[password,setPassword] = useState("");
+  const[username,setUsername] = useState("");
+  const[error,setError] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
      e.preventDefault();
-     setError("");
-     
-     const{ data,error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+     setError("")
+
+     const { data , error } = await supabase.auth.signUp({
+        email,
+        password,
+        
      });
-
      if(error) {
-       setError(error.message);
-       return;
+        setError(error.message)
+        return;
      }
+     
+     const user = data.user;
 
-     router.push("/");
+     if (user) {
+    // 🔥 insert into your users table
+    const { error: dbError } = await supabase
+      .from("users")
+      .insert([
+        {
+          id: user.id,
+          email: user.email,
+          username: username,
+        },
+      ]);
+
+    if (dbError) {
+      setError(dbError.message);
+      return;
+    }
+    }
+
+
+     router.push("/login");
 
   }
 
@@ -49,16 +69,31 @@ export default function LoginPage() {
             {/* Header */}
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-foreground mb-2">
-                Welcome Back
+                Create Account
               </h1>
               <p className="text-muted-foreground">
-                Sign in to your account to continue
+                Sign up to get started with ModernShop
               </p>
             </div>
 
             {/* Form */}
-            <form className="space-y-4"
-                  onSubmit={handleLogin}>
+            <form 
+            onSubmit={handleSignup}
+            className="space-y-4">
+              {/* Name Field */}
+              <div>
+                <Label htmlFor="name" className="text-sm font-semibold mb-2 block">
+                  Full Name
+                </Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+
               {/* Email Field */}
               <div>
                 <Label htmlFor="email" className="text-sm font-semibold mb-2 block">
@@ -69,9 +104,9 @@ export default function LoginPage() {
                     id="email"
                     type="email"
                     placeholder="you@example.com"
-                    className="pl-10"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
                     required
                   />
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -88,50 +123,66 @@ export default function LoginPage() {
                     id="password"
                     type="password"
                     placeholder="••••••••"
-                    className="pl-10"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10"
                     required
                   />
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 </div>
               </div>
 
-              {/* Remember Me / Forgot Password */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Checkbox id="rememberMe" />
-                  <Label
-                    htmlFor="rememberMe"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    Remember me
-                  </Label>
+              {/* Confirm Password Field */}
+              <div>
+                <Label htmlFor="confirmPassword" className="text-sm font-semibold mb-2 block">
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    className="pl-10"
+                    required
+                  />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 </div>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-primary hover:text-primary/80 transition-colors"
+              </div>
+
+              {/* Terms Checkbox */}
+              <div className="flex items-start gap-2 pt-2">
+                <Checkbox id="terms" required />
+                <Label
+                  htmlFor="terms"
+                  className="text-xs font-normal text-muted-foreground cursor-pointer leading-tight"
                 >
-                  Forgot password?
-                </Link>
+                  I agree to the{' '}
+                  <Link href="/terms" className="text-primary hover:text-primary/80">
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link href="/privacy" className="text-primary hover:text-primary/80">
+                    Privacy Policy
+                  </Link>
+                </Label>
               </div>
 
               {/* Submit Button */}
               <Button type="submit" size="lg" className="w-full mt-6">
-                Sign In
+                Create Account
               </Button>
             </form>
 
-            {/* Link to Sign Up */}
+            {/* Link to Login */}
             <div className="mt-6 text-center text-sm">
               <p className="text-muted-foreground">
-                Don't have an account?
+                Already have an account?
               </p>
               <Link
-                href="/signup"
+                href="/login"
                 className="inline-block mt-2 text-primary hover:text-primary/80 font-semibold transition-colors"
               >
-                Sign Up
+                Sign In
               </Link>
             </div>
 
@@ -156,22 +207,6 @@ export default function LoginPage() {
                 GitHub
               </Button>
             </div>
-          </div>
-           
-           {error && <p className="text-red-500 text-sm">{error}</p>}
-
-          {/* Additional Links */}
-          <div className="mt-6 text-center text-xs text-muted-foreground">
-            <p>
-              By continuing, you agree to our{' '}
-              <Link href="/terms" className="text-primary hover:text-primary/80">
-                Terms of Service
-              </Link>{' '}
-              and{' '}
-              <Link href="/privacy" className="text-primary hover:text-primary/80">
-                Privacy Policy
-              </Link>
-            </p>
           </div>
         </div>
       </main>
