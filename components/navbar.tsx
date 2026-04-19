@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabaseClient'
+import { useRouter } from 'next/navigation'
 
 interface NavbarProps {
   cartCount?: number
@@ -15,7 +16,8 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-
+  
+  const router = useRouter()
   useEffect(() => {
     const getSession = async () => {
       const { data } = await supabase.auth.getSession()
@@ -39,6 +41,7 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
     await supabase.auth.signOut()
     setUser(null)
     setIsDropdownOpen(false)
+    router.push('/')
   }
 
   return (
