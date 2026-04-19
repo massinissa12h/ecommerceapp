@@ -1,15 +1,38 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Navbar } from '@/components/navbar'
 import { Footer } from '@/components/footer'
 import { ProductCard } from '@/components/product-card'
 import { ProductFilters, FilterState } from '@/components/product-filters'
-import { mockProducts, Product } from '@/lib/mockProducts'
+import { supabase } from '@/lib/supabaseClient'
 import { Button } from '@/components/ui/button'
+import { Loader2, AlertCircle } from 'lucide-react'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface Product {
+  id: string
+  name: string
+  description: string | null
+  category: string | null
+  price: number | null
+  image_url: string | null
+  rating: number | null
+  created_at: string | null
+  tags: string[]
+  // Aliases to satisfy ProductCard / ProductFilters that may use these keys
+  image?: string
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
   const [cartCount, setCartCount] = useState(0)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const [filters, setFilters] = useState<FilterState>({
     categories: [],
     priceRange: [0, 500],
@@ -17,42 +40,80 @@ export default function ProductsPage() {
   })
   const [searchTerm, setSearchTerm] = useState('')
 
-  const handleAddToCart = (product: Product) => {
-    setCartCount(cartCount + 1)
-  }
+  // ── Fetch products + tags ──────────────────────────────────────────────────
+  const fetchProducts = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-  // Filter products based on criteria
+      if (productsError) throw productsError
+
+      const { data: tagsData } = await supabase
+        .from('product_tags')
+        .select('product_id, tag')
+
+      const tagsByProduct: Record<string, string[]> = {}
+      tagsData?.forEach(({ product_id, tag }: { product_id: string; tag: string }) => {
+        if (!tagsByProduct[product_id]) tagsByProduct[product_id] = []
+        tagsByProduct[product_id].push(tag)
+      })
+
+      setProducts(
+        (productsData ?? []).map((p: any) => ({
+          ...p,
+          tags: tagsByProduct[p.id] ?? [],
+          // Provide `image` alias for components that reference it
+          image: p.image_url ?? '',
+        }))
+      )
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to load products.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchProducts()
+  }, [fetchProducts])
+
+  // ── Filtering ──────────────────────────────────────────────────────────────
   const filteredProducts = useMemo(() => {
-    return mockProducts.filter((product) => {
-      // Category filter
-      if (filters.categories.length > 0 && !filters.categories.includes(product.category)) {
+    return products.filter((product) => {
+      if (
+        filters.categories.length > 0 &&
+        !filters.categories.includes(product.category ?? '')
+      ) {
         return false
       }
 
-      // Price range filter
-      if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
+      const price = product.price ?? 0
+      if (price < filters.priceRange[0] || price > filters.priceRange[1]) {
         return false
       }
 
-      // Rating filter
-      if (product.rating < filters.minRating) {
+      if ((product.rating ?? 0) < filters.minRating) {
         return false
       }
 
-      // Search filter
       if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase()
+        const q = searchTerm.toLowerCase()
         return (
-          product.name.toLowerCase().includes(searchLower) ||
-          product.description.toLowerCase().includes(searchLower) ||
-          product.tags.some(tag => tag.toLowerCase().includes(searchLower))
+          product.name.toLowerCase().includes(q) ||
+          (product.description ?? '').toLowerCase().includes(q) ||
+          product.tags.some((tag) => tag.toLowerCase().includes(q))
         )
       }
 
       return true
     })
-  }, [filters, searchTerm])
+  }, [filters, searchTerm, products])
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar cartCount={cartCount} />
@@ -70,57 +131,76 @@ export default function ProductsPage() {
 
         {/* Products Section */}
         <section className="max-w-7xl mx-auto px-4 py-12">
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Filters Sidebar */}
-            <ProductFilters
-              onFilterChange={setFilters}
-              onSearchChange={setSearchTerm}
-            />
-
-            {/* Products Grid */}
-            <div className="flex-1">
-              {filteredProducts.length > 0 ? (
-                <>
-                  <div className="mb-6">
-                    <p className="text-sm text-muted-foreground">
-                      Showing {filteredProducts.length} of {mockProducts.length} products
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onAddToCart={handleAddToCart}
-                      />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-12">
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
-                    No products found
-                  </h3>
-                  <p className="text-muted-foreground mb-6">
-                    Try adjusting your filters or search terms
-                  </p>
-                  <Button
-                    onClick={() => {
-                      setFilters({
-                        categories: [],
-                        priceRange: [0, 500],
-                        minRating: 0,
-                      })
-                      setSearchTerm('')
-                    }}
-                  >
-                    Reset Filters
-                  </Button>
-                </div>
-              )}
+          {loading ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="w-10 h-10 animate-spin text-primary" />
             </div>
-          </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="flex items-center gap-3 bg-destructive/10 text-destructive border border-destructive/30 rounded-lg px-6 py-4 max-w-md w-full">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <div>
+                  <p className="font-medium">Failed to load products</p>
+                  <p className="text-sm mt-0.5">{error}</p>
+                </div>
+              </div>
+              <Button onClick={fetchProducts} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col lg:flex-row gap-8">
+              {/* Filters Sidebar */}
+              <ProductFilters
+                onFilterChange={setFilters}
+                onSearchChange={setSearchTerm}
+              />
+
+              {/* Products Grid */}
+              <div className="flex-1">
+                {filteredProducts.length > 0 ? (
+                  <>
+                    <div className="mb-6">
+                      <p className="text-sm text-muted-foreground">
+                        Showing {filteredProducts.length} of {products.length} products
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredProducts.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product as any}
+                          onAddToCart={() => setCartCount((c) => c + 1)}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-12">
+                    <h3 className="text-lg font-semibold text-foreground mb-2">
+                      No products found
+                    </h3>
+                    <p className="text-muted-foreground mb-6">
+                      Try adjusting your filters or search terms
+                    </p>
+                    <Button
+                      onClick={() => {
+                        setFilters({
+                          categories: [],
+                          priceRange: [0, 500],
+                          minRating: 0,
+                        })
+                        setSearchTerm('')
+                      }}
+                    >
+                      Reset Filters
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </section>
       </main>
 

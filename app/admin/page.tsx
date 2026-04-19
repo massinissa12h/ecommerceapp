@@ -1,420 +1,333 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 import { Navbar } from '@/components/navbar'
 import { Footer } from '@/components/footer'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { mockProducts, Product } from '@/lib/mockProducts'
-import { mockUsers, User } from '@/lib/mockUsers'
-import { ProductForm } from '@/components/admin/product-form'
+import { Search, Edit2, Trash2 } from 'lucide-react'
 
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Search,
-  Users,
-  Package,
-  ChevronDown,
-} from 'lucide-react'
+type Product = {
+  id: string
+  name: string
+  description: string | null
+  category: string | null
+  price: number | null
+  image_url: string | null
+  rating: number | null
+}
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'products' | 'users'>('products')
-  const [products, setProducts] = useState<Product[]>(mockProducts)
-  const [users, setUsers] = useState<User[]>(mockUsers)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showProductForm, setShowProductForm] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  const [expandedUserRole, setExpandedUserRole] = useState<string | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  // Filter products
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  // Filter users
-  const filteredUsers = users.filter(
-    (u) =>
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    category: '',
+    price: 0,
+    image_url: '',
+    rating: 0,
+  })
 
-  // Product handlers
-  const handleCreateProduct = (product: Product) => {
-    setProducts([...products, { ...product, id: Date.now().toString() }])
-    setShowProductForm(false)
+  // ---------------- FETCH ----------------
+  useEffect(() => {
+    fetchProducts()
+  }, [])
+
+  const fetchProducts = async () => {
+    setLoading(true)
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (!error && data) setProducts(data)
+
+    setLoading(false)
   }
 
-  const handleUpdateProduct = (product: Product) => {
-    setProducts(products.map((p) => (p.id === product.id ? product : p)))
-    setEditingProduct(null)
-    setShowProductForm(false)
+  // ---------------- RESET ----------------
+  const resetForm = () => {
+    setForm({
+      name: '',
+      description: '',
+      category: '',
+      price: 0,
+      image_url: '',
+      rating: 0,
+    })
+    setEditingId(null)
   }
 
-  const handleDeleteProduct = (id: string) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+  // ---------------- CREATE ----------------
+  const createProduct = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .insert([
+        {
+          name: form.name,
+          description: form.description,
+          category: form.category,
+          price: form.price,
+          image_url: form.image_url,
+          rating: form.rating,
+        },
+      ])
+      .select()
+
+    if (!error && data) {
+      setProducts([data[0], ...products])
+      resetForm()
+    }
+  }
+
+  // ---------------- UPDATE ----------------
+  const updateProduct = async () => {
+    if (!editingId) return
+
+    const { error } = await supabase
+      .from('products')
+      .update({
+        name: form.name,
+        description: form.description,
+        category: form.category,
+        price: form.price,
+        image_url: form.image_url,
+        rating: form.rating,
+      })
+      .eq('id', editingId)
+
+    if (!error) {
+      setProducts(
+        products.map((p) =>
+          p.id === editingId ? { ...p, ...form } : p
+        )
+      )
+      resetForm()
+    }
+  }
+
+  // ---------------- DELETE ----------------
+  const deleteProduct = async (id: string) => {
+    if (!confirm('Delete this product?')) return
+
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id)
+
+    if (!error) {
       setProducts(products.filter((p) => p.id !== id))
     }
   }
 
-  const handleEditProduct = (product: Product) => {
-    setEditingProduct(product)
-    setShowProductForm(true)
+  // ---------------- EDIT ----------------
+  const startEdit = (p: Product) => {
+    setEditingId(p.id)
+    setForm({
+      name: p.name,
+      description: p.description || '',
+      category: p.category || '',
+      price: p.price || 0,
+      image_url: p.image_url || '',
+      rating: p.rating || 0,
+    })
   }
 
-  const handleCloseProductForm = () => {
-    setShowProductForm(false)
-    setEditingProduct(null)
-  }
-
-  // User handlers
-  const handleToggleUserRole = (userId: string) => {
-    setUsers(
-      users.map((u) => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            role: u.role === 'admin' ? 'customer' : 'admin',
-          }
-        }
-        return u
-      })
-    )
-    setExpandedUserRole(null)
-  }
-
-  const handleToggleUserStatus = (userId: string) => {
-    setUsers(
-      users.map((u) => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            status: u.status === 'active' ? 'banned' : 'active',
-          }
-        }
-        return u
-      })
-    )
-  }
+  // ---------------- FILTER ----------------
+  const filtered = products.filter((p) =>
+    (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.category || '').toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <>
       <Navbar cartCount={0} />
+
       <main className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto px-4 py-12">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-foreground mb-2">
+        <div className="max-w-6xl mx-auto px-4 py-10">
+
+          {/* HEADER */}
+          <div className="mb-10">
+            <h1 className="text-4xl font-bold tracking-tight">
               Admin Dashboard
             </h1>
-            <p className="text-muted-foreground">
-              Manage products and users for your store
+            <p className="text-muted-foreground mt-2">
+              Manage your products easily
             </p>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-4 mb-8 border-b border-border">
-            <button
-              onClick={() => {
-                setActiveTab('products')
-                setSearchQuery('')
-              }}
-              className={`pb-4 px-4 font-medium border-b-2 transition-colors ${
-                activeTab === 'products'
-                  ? 'text-primary border-primary'
-                  : 'text-muted-foreground border-transparent hover:text-foreground'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Products ({products.length})
-              </div>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('users')
-                setSearchQuery('')
-              }}
-              className={`pb-4 px-4 font-medium border-b-2 transition-colors ${
-                activeTab === 'users'
-                  ? 'text-primary border-primary'
-                  : 'text-muted-foreground border-transparent hover:text-foreground'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Users ({users.length})
-              </div>
-            </button>
+          {/* SEARCH */}
+          <div className="flex items-center gap-3 mb-8">
+            <Search className="w-5 h-5 text-muted-foreground" />
+            <Input
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-md"
+            />
           </div>
 
-          {/* Search Bar */}
-          <div className="mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder={
-                  activeTab === 'products'
-                    ? 'Search products by name or category...'
-                    : 'Search users by name or email...'
-                }
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10"
-              />
+          {/* FORM */}
+          <div className="bg-card border border-border rounded-xl p-6 mb-10 shadow-sm">
+
+            <h2 className="text-lg font-semibold mb-1">
+              {editingId ? 'Edit Product' : 'Add New Product'}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Fill in product details below
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+              {/* NAME */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Name</label>
+                <Input
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm({ ...form, name: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* CATEGORY */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Category</label>
+                <Input
+                  value={form.category}
+                  onChange={(e) =>
+                    setForm({ ...form, category: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* PRICE */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Price</label>
+                <Input
+                  type="number"
+                  value={form.price}
+                  onChange={(e) =>
+                    setForm({ ...form, price: Number(e.target.value) })
+                  }
+                />
+              </div>
+
+              {/* RATING */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Rating</label>
+                <Input
+                  type="number"
+                  value={form.rating}
+                  onChange={(e) =>
+                    setForm({ ...form, rating: Number(e.target.value) })
+                  }
+                />
+              </div>
+
+              {/* IMAGE */}
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-sm font-medium">Image URL</label>
+                <Input
+                  value={form.image_url}
+                  onChange={(e) =>
+                    setForm({ ...form, image_url: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* DESCRIPTION */}
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-sm font-medium">Description</label>
+                <Input
+                  value={form.description}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
+                />
+              </div>
+
             </div>
-          </div>
 
-          {/* Products Tab */}
-          {activeTab === 'products' && (
-            <div className="space-y-6">
+            {/* ACTIONS */}
+            <div className="flex justify-end gap-3 mt-6">
+              {editingId && (
+                <Button variant="outline" onClick={resetForm}>
+                  Cancel
+                </Button>
+              )}
+
               <Button
-                onClick={() => setShowProductForm(true)}
-                size="lg"
-                className="gap-2"
+                onClick={editingId ? updateProduct : createProduct}
               >
-                <Plus className="w-5 h-5" />
-                Create New Product
+                {editingId ? 'Update Product' : 'Create Product'}
               </Button>
+            </div>
+          </div>
 
-              {/* Products Table */}
-              <div className="border border-border rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-muted border-b border-border">
-                      <tr>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Product
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Category
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Price
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Rating
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredProducts.length > 0 ? (
-                        filteredProducts.map((product) => (
-                          <tr
-                            key={product.id}
-                            className="border-b border-border hover:bg-muted/50 transition-colors"
-                          >
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <img
-                                  src={product.image}
-                                  alt={product.name}
-                                  className="w-10 h-10 rounded object-cover"
-                                />
-                                <span className="font-medium text-foreground">
-                                  {product.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-muted-foreground">
-                              {product.category}
-                            </td>
-                            <td className="px-6 py-4 font-semibold text-foreground">
-                              ${product.price.toFixed(2)}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-1">
-                                <span className="text-foreground">
-                                  {product.rating}
-                                </span>
-                                <span className="text-yellow-500">★</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => handleEditProduct(product)}
-                                  className="p-2 hover:bg-muted rounded transition-colors text-primary"
-                                  title="Edit product"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleDeleteProduct(product.id)
-                                  }
-                                  className="p-2 hover:bg-muted rounded transition-colors text-destructive"
-                                  title="Delete product"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center">
-                            <p className="text-muted-foreground">
-                              No products found matching your search.
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+          {/* LIST */}
+          {loading ? (
+            <p>Loading...</p>
+          ) : (
+            <div className="space-y-4">
+              {filtered.map((p) => (
+                <div
+                  key={p.id}
+                  className="bg-card border border-border rounded-xl p-5 flex justify-between items-center hover:shadow-sm transition"
+                >
+
+                  {/* LEFT */}
+                  <div className="flex items-center gap-4">
+
+                    <img
+                      src={p.image_url || '/placeholder.png'}
+                      className="w-14 h-14 rounded-lg object-cover border"
+                    />
+
+                    <div>
+                      <h3 className="font-semibold">{p.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {p.category}
+                      </p>
+                      <p className="text-sm font-medium">
+                        ${p.price}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ACTIONS */}
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startEdit(p)}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => deleteProduct(p.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
                 </div>
-              </div>
+              ))}
             </div>
           )}
 
-          {/* Users Tab */}
-          {activeTab === 'users' && (
-            <div className="space-y-6">
-              {/* Users Table */}
-              <div className="border border-border rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-muted border-b border-border">
-                      <tr>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          User
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Email
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Role
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Status
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Orders
-                        </th>
-                        <th className="text-left px-6 py-4 font-semibold text-foreground">
-                          Joined
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredUsers.length > 0 ? (
-                        filteredUsers.map((user) => (
-                          <tr
-                            key={user.id}
-                            className="border-b border-border hover:bg-muted/50 transition-colors"
-                          >
-                            <td className="px-6 py-4">
-                              <span className="font-medium text-foreground">
-                                {user.name}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-muted-foreground">
-                              {user.email}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="relative">
-                                <button
-                                  onClick={() =>
-                                    setExpandedUserRole(
-                                      expandedUserRole === user.id
-                                        ? null
-                                        : user.id
-                                    )
-                                  }
-                                  className={`flex items-center gap-2 px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                    user.role === 'admin'
-                                      ? 'bg-primary text-primary-foreground'
-                                      : 'bg-secondary text-secondary-foreground'
-                                  }`}
-                                >
-                                  {user.role}
-                                  <ChevronDown className="w-4 h-4" />
-                                </button>
-
-                                {expandedUserRole === user.id && (
-                                  <div className="absolute top-full mt-1 bg-card border border-border rounded shadow-lg z-10">
-                                    {user.role === 'customer' && (
-                                      <button
-                                        onClick={() =>
-                                          handleToggleUserRole(user.id)
-                                        }
-                                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
-                                      >
-                                        Make Admin
-                                      </button>
-                                    )}
-                                    {user.role === 'admin' && (
-                                      <button
-                                        onClick={() =>
-                                          handleToggleUserRole(user.id)
-                                        }
-                                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
-                                      >
-                                        Make Customer
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <button
-                                onClick={() =>
-                                  handleToggleUserStatus(user.id)
-                                }
-                                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                  user.status === 'active'
-                                    ? 'bg-green-100/20 text-green-700 hover:bg-green-100/30'
-                                    : 'bg-red-100/20 text-red-700 hover:bg-red-100/30'
-                                }`}
-                              >
-                                {user.status}
-                              </button>
-                            </td>
-                            <td className="px-6 py-4 text-foreground">
-                              {user.totalOrders}
-                            </td>
-                            <td className="px-6 py-4 text-muted-foreground">
-                              {new Date(user.joinDate).toLocaleDateString()}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center">
-                            <p className="text-muted-foreground">
-                              No users found matching your search.
-                            </p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </main>
-
-      {/* Product Form Modal */}
-      {showProductForm && (
-        <ProductForm
-          initialProduct={editingProduct || undefined}
-          onSubmit={
-            editingProduct ? handleUpdateProduct : handleCreateProduct
-          }
-          onCancel={handleCloseProductForm}
-        />
-      )}
 
       <Footer />
     </>
