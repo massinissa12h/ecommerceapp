@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { categories } from '@/lib/mockProducts'
+import { supabase } from '@/lib/supabaseClient'
+import { Star, RotateCcw, Tag, DollarSign, LayoutList } from 'lucide-react'
 
 interface ProductFiltersProps {
   onFilterChange: (filters: FilterState) => void
@@ -19,146 +19,201 @@ export interface FilterState {
   minRating: number
 }
 
+const RATING_OPTIONS = [
+  { value: 0, label: 'All Ratings' },
+  { value: 3, label: '3+ Stars' },
+  { value: 4, label: '4+ Stars' },
+  { value: 4.5, label: '4.5+ Stars' },
+]
+
 export function ProductFilters({ onFilterChange, onSearchChange }: ProductFiltersProps) {
+  const [categories, setCategories] = useState<string[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 500])
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 20000])
   const [minRating, setMinRating] = useState(0)
-  const [searchInput, setSearchInput] = useState('')
+
+  // ── Fetch distinct categories from Supabase ──────────────────────────
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoadingCategories(true)
+      const { data } = await supabase
+        .from('products')
+        .select('category')
+        .not('category', 'is', null)
+
+      if (data) {
+        const unique = [...new Set(
+          data
+            .map((p: { category: string | null }) => p.category)
+            .filter((c): c is string => !!c)
+            .map((c) => c.trim().toLowerCase())
+        )].sort()
+        setCategories(unique)
+      }
+      setLoadingCategories(false)
+    }
+    fetchCategories()
+  }, [])
+
+  // ── Handlers ──────────────────────────────────────────────────────────
+  const emit = (
+    cats: string[],
+    price: [number, number],
+    rating: number
+  ) => {
+    onFilterChange({ categories: cats, priceRange: price, minRating: rating })
+  }
 
   const handleCategoryChange = (category: string, checked: boolean) => {
     const updated = checked
       ? [...selectedCategories, category]
-      : selectedCategories.filter(c => c !== category)
+      : selectedCategories.filter((c) => c !== category)
     setSelectedCategories(updated)
-    onFilterChange({
-      categories: updated,
-      priceRange,
-      minRating,
-    })
+    emit(updated, priceRange, minRating)
   }
 
   const handlePriceChange = (value: [number, number]) => {
     setPriceRange(value)
-    onFilterChange({
-      categories: selectedCategories,
-      priceRange: value,
-      minRating,
-    })
+    emit(selectedCategories, value, minRating)
   }
 
   const handleRatingChange = (rating: number) => {
     setMinRating(rating)
-    onFilterChange({
-      categories: selectedCategories,
-      priceRange,
-      minRating: rating,
-    })
-  }
-
-  const handleSearchChange = (value: string) => {
-    setSearchInput(value)
-    onSearchChange(value)
+    emit(selectedCategories, priceRange, rating)
   }
 
   const resetFilters = () => {
     setSelectedCategories([])
-    setPriceRange([0, 500])
+    setPriceRange([0, 20000])
     setMinRating(0)
-    setSearchInput('')
-    onFilterChange({
-      categories: [],
-      priceRange: [0, 500],
-      minRating: 0,
-    })
+    onFilterChange({ categories: [], priceRange: [0, 20000], minRating: 0 })
     onSearchChange('')
   }
 
+  const hasActiveFilters =
+    selectedCategories.length > 0 ||
+    priceRange[0] > 0 ||
+    priceRange[1] < 20000 ||
+    minRating > 0
+
+  // ── Render ────────────────────────────────────────────────────────────
   return (
-    <aside className="w-full lg:w-64 flex-shrink-0 bg-white rounded-lg border border-border p-6 h-fit lg:sticky lg:top-24">
-      {/* Search */}
-      <div className="mb-6">
-        <Label htmlFor="search" className="text-sm font-semibold mb-2 block">
-          Search Products
-        </Label>
-        <Input
-          id="search"
-          type="text"
-          placeholder="Search..."
-          value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full"
-        />
-      </div>
+    <aside className="w-full lg:w-64 flex-shrink-0 h-fit lg:sticky lg:top-24 space-y-1">
 
-      {/* Categories */}
-      <div className="mb-6">
-        <h3 className="font-semibold text-sm text-foreground mb-3">Categories</h3>
-        <div className="space-y-2">
-          {categories.map((category) => (
-            <div key={category} className="flex items-center gap-2">
-              <Checkbox
-                id={category}
-                checked={selectedCategories.includes(category)}
-                onCheckedChange={(checked) =>
-                  handleCategoryChange(category, checked as boolean)
-                }
-              />
-              <Label
-                htmlFor={category}
-                className="text-sm font-normal cursor-pointer capitalize"
-              >
-                {category}
-              </Label>
-            </div>
-          ))}
+      {/* ── Categories ──────────────────────────────────────────────── */}
+      <div className="bg-white rounded-lg border border-border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <LayoutList className="w-4 h-4 text-muted-foreground" />
+          <h3 className="font-semibold text-sm text-foreground">Categories</h3>
+          {selectedCategories.length > 0 && (
+            <span className="ml-auto text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+              {selectedCategories.length}
+            </span>
+          )}
         </div>
+
+        {loadingCategories ? (
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-5 bg-secondary rounded animate-pulse" />
+            ))}
+          </div>
+        ) : categories.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No categories found</p>
+        ) : (
+          <div className="space-y-2.5">
+            {categories.map((category) => (
+              <div key={category} className="flex items-center gap-2.5">
+                <Checkbox
+                  id={`cat-${category}`}
+                  checked={selectedCategories.includes(category)}
+                  onCheckedChange={(checked) =>
+                    handleCategoryChange(category, checked as boolean)
+                  }
+                />
+                <Label
+                  htmlFor={`cat-${category}`}
+                  className="text-sm font-normal cursor-pointer capitalize leading-none"
+                >
+                  {category}
+                </Label>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Price Range */}
-      <div className="mb-6">
-        <h3 className="font-semibold text-sm text-foreground mb-4">Price Range</h3>
+      {/* ── Price Range ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-lg border border-border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <DollarSign className="w-4 h-4 text-muted-foreground" />
+          <h3 className="font-semibold text-sm text-foreground">Price Range</h3>
+        </div>
+
         <Slider
           value={priceRange}
           onValueChange={handlePriceChange}
           min={0}
-          max={500}
+          max={20000}
           step={10}
           className="w-full"
         />
-        <div className="flex justify-between text-xs text-muted-foreground mt-2">
-          <span>${priceRange[0]}</span>
-          <span>${priceRange[1]}</span>
+
+        <div className="flex items-center justify-between mt-3">
+          <div className="text-xs bg-secondary text-foreground rounded px-2 py-1 font-medium">
+            ${priceRange[0]}
+          </div>
+          <div className="h-px flex-1 bg-border mx-2" />
+          <div className="text-xs bg-secondary text-foreground rounded px-2 py-1 font-medium">
+            ${priceRange[1]}
+          </div>
         </div>
       </div>
 
-      {/* Rating Filter */}
-      <div className="mb-6">
-        <h3 className="font-semibold text-sm text-foreground mb-3">Minimum Rating</h3>
-        <div className="space-y-2">
-          {[0, 3, 4, 4.5].map((rating) => (
+      {/* ── Rating ──────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-lg border border-border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Star className="w-4 h-4 text-muted-foreground" />
+          <h3 className="font-semibold text-sm text-foreground">Minimum Rating</h3>
+        </div>
+
+        <div className="space-y-1.5">
+          {RATING_OPTIONS.map(({ value, label }) => (
             <button
-              key={rating}
-              onClick={() => handleRatingChange(rating)}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                minRating === rating
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-foreground hover:bg-secondary/80'
+              key={value}
+              onClick={() => handleRatingChange(value)}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                minRating === value
+                  ? 'bg-primary text-primary-foreground font-medium'
+                  : 'text-foreground hover:bg-secondary'
               }`}
             >
-              {rating === 0 ? 'All Ratings' : `${rating}+ Stars`}
+              {value > 0 && (
+                <Star
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    minRating === value ? 'fill-primary-foreground' : 'fill-amber-400 text-amber-400'
+                  }`}
+                />
+              )}
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Reset Button */}
-      <Button
-        onClick={resetFilters}
-        variant="outline"
-        className="w-full text-sm"
-      >
-        Reset Filters
-      </Button>
+      {/* ── Reset ───────────────────────────────────────────────────── */}
+      {hasActiveFilters && (
+        <Button
+          onClick={resetFilters}
+          variant="outline"
+          className="w-full text-sm gap-2"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Reset Filters
+        </Button>
+      )}
     </aside>
   )
 }

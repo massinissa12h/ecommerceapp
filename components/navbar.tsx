@@ -1,12 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { ShoppingCart, Menu, X, Search, LogOut, Settings, User } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  ShoppingCart,
+  Menu,
+  X,
+  Search,
+  LogOut,
+  User,
+  Sparkles,
+  Store,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabaseClient'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 interface NavbarProps {
   cartCount?: number
@@ -16,8 +26,20 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  
+  const [searchValue, setSearchValue] = useState('')
+
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (pathname === '/products') {
+      setSearchValue(searchParams.get('q') ?? '')
+    } else {
+      setSearchValue('')
+    }
+  }, [pathname, searchParams])
+
   useEffect(() => {
     const getSession = async () => {
       const { data } = await supabase.auth.getSession()
@@ -26,217 +48,288 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
 
     getSession()
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_, session) => {
-        setUser(session?.user ?? null)
-      }
-    )
+    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null)
+    })
 
-    return () => {
-      listener?.subscription.unsubscribe()
-    }
+    return () => listener?.subscription.unsubscribe()
   }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setUser(null)
     setIsDropdownOpen(false)
+    setIsMenuOpen(false)
     router.push('/')
   }
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    const q = searchValue.trim()
+    setIsMenuOpen(false)
+    router.push(q ? `/products?q=${encodeURIComponent(q)}` : '/products')
+  }
+
+  const navLinks = [
+    { href: '/products', label: 'Products' },
+    { href: '/foryou', label: 'For You' },
+  ]
+
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-border">
-      <nav className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-        {/* Logo */}
-        <Link href="/" className="flex-shrink-0">
-          <div className="text-xl font-bold tracking-tight text-foreground">
-            ModernShop
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-white/80 backdrop-blur-xl">
+      <nav className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <motion.div
+            whileHover={{ rotate: -8, scale: 1.05 }}
+            className="w-10 h-10 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-sm"
+          >
+            <Store className="w-5 h-5" />
+          </motion.div>
+
+          <div>
+            <p className="text-xl font-bold tracking-tight text-foreground leading-none">
+              ModernShop
+            </p>
+            <p className="hidden sm:block text-[11px] text-muted-foreground mt-0.5">
+              Premium shopping
+            </p>
           </div>
         </Link>
 
-        {/* Search Bar - Hidden on Mobile */}
-        <div className="hidden md:flex flex-1 max-w-xs">
-          <div className="relative w-full">
+        <form
+          onSubmit={handleSearch}
+          className="hidden md:flex flex-1 max-w-sm"
+        >
+          <div className="relative w-full group">
             <Input
               type="search"
               placeholder="Search products..."
-              className="w-full pl-10 text-sm"
+              className="w-full pl-10 pr-4 h-10 rounded-full bg-secondary/70 border-border focus:bg-white transition-all"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
             />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           </div>
+        </form>
+
+        <div className="hidden md:flex items-center gap-1">
+          {navLinks.map((link) => {
+            const active = pathname === link.href
+
+            return (
+              <Link key={link.href} href={link.href}>
+                <motion.div
+                  whileHover={{ y: -2 }}
+                  className={`relative px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    active
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {link.label}
+
+                  {active && (
+                    <motion.span
+                      layoutId="nav-active"
+                      className="absolute inset-0 rounded-full border border-primary/20"
+                    />
+                  )}
+                </motion.div>
+              </Link>
+            )
+          })}
         </div>
 
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-6">
-          <Link
-            href="/products"
-            className="text-sm font-medium text-foreground hover:text-primary transition-colors"
-          >
-            Products
-          </Link>
-        </div>
+        <div className="flex items-center gap-2">
+          {!user && (
+            <div className="hidden md:flex gap-2">
+              <Link href="/login">
+                <Button variant="ghost" size="sm" className="rounded-full">
+                  Login
+                </Button>
+              </Link>
 
-        {/* User Menu */}
-        {user ? (
-          <div className="relative">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold hover:opacity-90 transition-opacity"
-              aria-label="User menu"
-            >
-              {user.email?.charAt(0).toUpperCase() || 'U'}
-            </button>
+              <Link href="/signup">
+                <Button size="sm" className="rounded-full">
+                  Sign up
+                </Button>
+              </Link>
+            </div>
+          )}
 
-            {/* Dropdown Menu */}
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50">
-                <div className="px-4 py-3 border-b border-border">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {user.email}
-                  </p>
-                </div>
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  onClick={() => setIsDropdownOpen(false)}
-                >
-                  <User className="w-4 h-4" />
-                  Profile
-                </Link>
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  onClick={() => setIsDropdownOpen(false)}
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-muted transition-colors border-t border-border"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="hidden md:flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">
-                Login
-              </Button>
-            </Link>
-            <Link href="/login">
-              <Button size="sm">
-                Sign up
-              </Button>
-            </Link>
-          </div>
-        )}
+          {user && (
+            <div className="relative hidden md:block">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center overflow-hidden ring-2 ring-primary/10"
+              >
+                {user.user_metadata?.avatar_url ? (
+                  <img
+                    src={user.user_metadata.avatar_url}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  user.email?.charAt(0).toUpperCase() || 'U'
+                )}
+              </motion.button>
 
-        {/* Cart and Menu */}
-        <div className="flex items-center gap-3">
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                    className="absolute right-0 mt-3 w-64 bg-white border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
+                  >
+                    <div className="px-4 py-4 border-b border-border bg-secondary/60">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Signed in as
+                      </p>
+                      <p className="text-sm font-medium truncate">
+                        {user.email}
+                      </p>
+                    </div>
+
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-secondary transition-colors"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <User className="w-4 h-4" />
+                      Profile
+                    </Link>
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left flex items-center gap-2 px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition-colors border-t"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign out
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
           <Link href="/cart">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="relative"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {cartCount > 0 && (
-                <span className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {cartCount}
-                </span>
-              )}
-            </Button>
+            <motion.div whileTap={{ scale: 0.94 }}>
+              <Button variant="ghost" size="sm" className="relative rounded-full">
+                <ShoppingCart className="w-5 h-5" />
+
+                <AnimatePresence>
+                  {cartCount > 0 && (
+                    <motion.span
+                      key={cartCount}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[11px] rounded-full min-w-5 h-5 px-1 flex items-center justify-center font-bold"
+                    >
+                      {cartCount}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Button>
+            </motion.div>
           </Link>
 
-          {/* Mobile Menu Button */}
-          <button
+          <motion.button
+            whileTap={{ scale: 0.92 }}
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-2"
-            aria-label="Toggle menu"
+            className="md:hidden w-10 h-10 rounded-full border border-border flex items-center justify-center"
           >
-            {isMenuOpen ? (
-              <X className="w-5 h-5" />
-            ) : (
-              <Menu className="w-5 h-5" />
-            )}
-          </button>
+            {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </motion.button>
         </div>
       </nav>
 
-      {/* Mobile Menu */}
-      {isMenuOpen && (
-        <div className="md:hidden border-t border-border bg-card">
-          <div className="px-4 py-4 space-y-4">
-            {/* Mobile Search */}
-            <div className="relative">
-              <Input
-                type="search"
-                placeholder="Search products..."
-                className="w-full pl-10 text-sm"
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden border-t border-border bg-white/95 backdrop-blur-xl overflow-hidden"
+          >
+            <div className="px-4 py-4 space-y-4">
+              <form onSubmit={handleSearch} className="relative">
+                <Input
+                  type="search"
+                  placeholder="Search products..."
+                  className="pl-10 rounded-full"
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              </form>
+
+              <div className="grid gap-2">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setIsMenuOpen(false)}
+                    className={`flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium ${
+                      pathname === link.href
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-secondary text-foreground'
+                    }`}
+                  >
+                    {link.label}
+                    {pathname === link.href && <Sparkles className="w-4 h-4" />}
+                  </Link>
+                ))}
+              </div>
+
+              <div className="border-t border-border pt-4 grid gap-2">
+                {user ? (
+                  <>
+                    <div className="rounded-2xl bg-secondary p-4">
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Signed in as
+                      </p>
+                      <p className="text-sm font-medium truncate">{user.email}</p>
+                    </div>
+
+                    <Link
+                      href="/profile"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="rounded-2xl px-4 py-3 bg-secondary text-sm font-medium"
+                    >
+                      Profile
+                    </Link>
+
+                    <button
+                      onClick={handleLogout}
+                      className="rounded-2xl px-4 py-3 bg-destructive/10 text-destructive text-sm font-medium text-left"
+                    >
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Link href="/login" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="outline" className="w-full rounded-xl">
+                        Login
+                      </Button>
+                    </Link>
+
+                    <Link href="/signup" onClick={() => setIsMenuOpen(false)}>
+                      <Button className="w-full rounded-xl">
+                        Sign up
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
-
-            <Link
-              href="/products"
-              className="block text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Products
-            </Link>
-
-            {user ? (
-              <>
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <User className="w-4 h-4" />
-                  Profile
-                </Link>
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left flex items-center gap-2 text-sm font-medium text-destructive hover:text-destructive/80 transition-colors py-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="block text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/login"
-                  className="block text-sm font-medium text-foreground hover:text-primary transition-colors py-2"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Sign up
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   )
 }
