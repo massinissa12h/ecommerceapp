@@ -20,7 +20,7 @@ export function CartItem({
 
   return (
     <div className="flex gap-4 py-4 border-b border-border last:border-b-0">
-      {/* Product Image */}
+
       <div className="flex-shrink-0">
         <div className="relative w-24 h-24 bg-secondary rounded-lg overflow-hidden">
           <Image
@@ -33,7 +33,6 @@ export function CartItem({
         </div>
       </div>
 
-      {/* Product Details */}
       <div className="flex-1 flex flex-col justify-between">
         <div>
           <h3 className="font-semibold text-foreground">
@@ -44,7 +43,6 @@ export function CartItem({
           </p>
         </div>
 
-        {/* Quantity Controls */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => onQuantityChange(Math.max(1, quantity - 1))}
@@ -64,7 +62,6 @@ export function CartItem({
         </div>
       </div>
 
-      {/* Price and Remove */}
       <div className="flex flex-col items-end justify-between">
         <div className="text-right">
           <p className="font-bold text-lg text-foreground">

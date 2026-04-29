@@ -42,9 +42,6 @@ export function FriendsList({
         const unread = unreadByPeerId.get(f.other.id) ?? 0
         const handleOpen = () => onOpenChat(f)
         return (
-          // Row uses role="button" instead of <button> so it can contain
-          // other interactive elements (avatar Link, unfriend Button) without
-          // triggering React's nested-button hydration error.
           <motion.div
             key={f.id}
             whileHover={{ x: 2 }}
@@ -64,10 +61,7 @@ export function FriendsList({
             }`}
           >
             <div className="flex items-center gap-3 min-w-0">
-              <span
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
+              <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                 <UserAvatar user={f.other} linkToId={f.other.id} />
               </span>
               <div className="min-w-0">
@@ -80,9 +74,7 @@ export function FriendsList({
                   )}
                 </p>
                 {f.other.username && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    @{f.other.username}
-                  </p>
+                  <p className="text-xs text-muted-foreground truncate">@{f.other.username}</p>
                 )}
               </div>
             </div>

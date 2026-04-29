@@ -1,16 +1,4 @@
-/**
- * Client-side recommender helpers.
- *
- * All HTTP calls go through /api/recommend (a Next.js route handler) so the
- * X-API-Key for the FastAPI service stays on the server.
- *
- * The engine returns item_ids only; we hydrate them to full product rows
- * via Supabase in a single batch.
- */
-
 import { supabase } from '@/lib/supabaseClient'
-
-// Engine response shapes
 
 export interface RecommendationItem {
   item_id: string
@@ -24,8 +12,6 @@ export interface HomepageItem extends RecommendationItem {
   personalised: boolean
 }
 
-// Hydrated product (matches DB schema)
-
 export interface HydratedProduct {
   id: string
   name: string
@@ -36,15 +22,11 @@ export interface HydratedProduct {
 }
 
 export interface RecommendedProduct extends HydratedProduct {
-  // From the engine - explanation + score live alongside product data so the
-  // UI can show "why this?" chips without re-fetching.
   score: number
   explanation: string
   sources: Record<string, number>
   personalised?: boolean
 }
-
-// HTTP wrappers
 
 async function readErrorDetail(res: Response): Promise<string> {
   try {
@@ -61,7 +43,6 @@ async function readErrorDetail(res: Response): Promise<string> {
   }
 }
 
-/** GET /homepage - popularity for new users, collaborative for known ones. */
 export async function fetchHomepage(opts: {
   userId?: string | null
   n?: number
@@ -70,10 +51,7 @@ export async function fetchHomepage(opts: {
   const params = new URLSearchParams({ mode: 'homepage', n: String(opts.n ?? 6) })
   if (opts.userId) params.set('user_id', opts.userId)
 
-  const res = await fetch(`/api/recommend?${params.toString()}`, {
-    signal: opts.signal,
-    cache: 'no-store',
-  })
+  const res = await fetch(`/api/recommend?${params.toString()}`, { signal: opts.signal, cache: 'no-store' })
   if (!res.ok) {
     const detail = await readErrorDetail(res)
     throw new Error(`homepage ${res.status}${detail ? ` - ${detail}` : ''}`)
@@ -81,7 +59,6 @@ export async function fetchHomepage(opts: {
   return (await res.json()) as HomepageItem[]
 }
 
-/** GET /recommend - content + collaborative hybrid for a (user, item) pair. */
 export async function fetchRecommendForItem(opts: {
   userId: string
   itemId: string
@@ -106,12 +83,6 @@ export async function fetchRecommendForItem(opts: {
   return (await res.json()) as RecommendationItem[]
 }
 
-// Hydration helpers
-
-/**
- * Batch-fetch product rows by id, then merge engine fields (score, explanation)
- * back in. Preserves the engine's ranking order.
- */
 export async function hydrateRecommendations(
   recs: RecommendationItem[] | HomepageItem[],
 ): Promise<RecommendedProduct[]> {
@@ -129,29 +100,19 @@ export async function hydrateRecommendations(
     (data as HydratedProduct[]).map((p) => [p.id, p]),
   )
 
-  return recs
-    .map((r) => {
-      const product = byId.get(r.item_id)
-      if (!product) return null
-      return {
-        ...product,
-        score: r.score,
-        explanation: r.explanation,
-        sources: r.sources,
-        personalised: 'personalised' in r ? r.personalised : undefined,
-      } as RecommendedProduct
-    })
-    .filter(Boolean) as RecommendedProduct[]
+  return recs.map((r) => {
+    const product = byId.get(r.item_id)
+    if (!product) return null
+    return {
+      ...product,
+      score: r.score,
+      explanation: r.explanation,
+      sources: r.sources,
+      personalised: 'personalised' in r ? r.personalised : undefined,
+    } as RecommendedProduct
+  }).filter(Boolean) as RecommendedProduct[]
 }
 
-// Friend-based recommendations (no engine call needed)
-
-/**
- * Products liked by accepted friends, weighted by how many friends liked them.
- * Excludes products the user has already interacted with.
- *
- * Pure Supabase query - runs even when the recommender service is down.
- */
 export async function fetchFriendsLiked(
   userId: string,
   limit = 6,
@@ -188,11 +149,7 @@ export async function fetchFriendsLiked(
   const counts = new Map<string, { count: number; latest: string; friends: Set<string> }>()
   for (const l of likes) {
     if (!l.product_id || excluded.has(l.product_id)) continue
-    const entry = counts.get(l.product_id) ?? {
-      count: 0,
-      latest: l.created_at,
-      friends: new Set(),
-    }
+    const entry = counts.get(l.product_id) ?? { count: 0, latest: l.created_at, friends: new Set() }
     entry.friends.add(l.user_id)
     entry.count = entry.friends.size
     if (l.created_at > entry.latest) entry.latest = l.created_at
@@ -215,30 +172,19 @@ export async function fetchFriendsLiked(
     ((products ?? []) as HydratedProduct[]).map((p) => [p.id, p]),
   )
 
-  return ranked
-    .map(([id, info]) => {
-      const product = byId.get(id)
-      if (!product) return null
-      return {
-        ...product,
-        score: info.count,
-        explanation: `Liked by ${info.count} of your friend${info.count === 1 ? '' : 's'}`,
-        sources: { social: info.count },
-      } as RecommendedProduct
-    })
-    .filter(Boolean) as RecommendedProduct[]
+  return ranked.map(([id, info]) => {
+    const product = byId.get(id)
+    if (!product) return null
+    return {
+      ...product,
+      score: info.count,
+      explanation: `Liked by ${info.count} of your friend${info.count === 1 ? '' : 's'}`,
+      sources: { social: info.count },
+    } as RecommendedProduct
+  }).filter(Boolean) as RecommendedProduct[]
 }
 
-// Recently viewed (used as anchors for content-based recs)
-
-/**
- * Returns the user's most-recently viewed distinct products. Used to seed
- * "Because you viewed X" sections.
- */
-export async function fetchRecentViews(
-  userId: string,
-  limit = 3,
-): Promise<HydratedProduct[]> {
+export async function fetchRecentViews(userId: string, limit = 3): Promise<HydratedProduct[]> {
   const { data } = await supabase
     .from('interactions')
     .select('product_id, created_at')

@@ -19,7 +19,6 @@ export function FindPeople({ searchUsers, sendRequest }: FindPeopleProps) {
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
-  // Debounced search
   useEffect(() => {
     const q = query.trim()
     if (!q) {

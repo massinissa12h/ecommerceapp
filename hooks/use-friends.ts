@@ -4,23 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import type { FriendshipWithUser, PublicUser } from '@/lib/types/social'
 
-/**
- * useFriends — load all friendships involving the current user, hydrated with the
- * "other" user's profile, and keep the list in sync via Realtime.
- *
- * Returns:
- *  - friends:           accepted friendships
- *  - incomingRequests:  someone sent YOU a request, status='pending'
- *  - outgoingRequests:  YOU sent a request, status='pending'
- *  - actions:           sendRequest / acceptRequest / declineOrCancel / removeFriend / searchUsers
- */
 export function useFriends(currentUserId: string | null) {
   const [rows, setRows] = useState<FriendshipWithUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const channelIdRef = useRef(Math.random().toString(36).slice(2))
 
-  // ---------- loader ----------
   const load = useCallback(async () => {
     if (!currentUserId) {
       setRows([])
@@ -30,7 +19,6 @@ export function useFriends(currentUserId: string | null) {
     setLoading(true)
     setError(null)
 
-    // Pull every friendship I'm part of
     const { data: friendships, error: fErr } = await supabase
       .from('friendships')
       .select('id, requester_id, addressee_id, status, created_at, updated_at')
@@ -49,7 +37,6 @@ export function useFriends(currentUserId: string | null) {
       return
     }
 
-    // Hydrate the "other" user for each row in a single query
     const otherIds = Array.from(
       new Set(
         friendships.map((f) =>
@@ -58,13 +45,11 @@ export function useFriends(currentUserId: string | null) {
       ),
     )
 
-    // Hydrate basic user info...
     const { data: users, error: uErr } = await supabase
       .from('users')
       .select('id, username, email')
       .in('id', otherIds)
 
-    // ...and avatar_url from profiles (separate table). Missing rows are fine.
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, avatar_url')
@@ -113,7 +98,6 @@ export function useFriends(currentUserId: string | null) {
     load()
   }, [load])
 
-  // ---------- realtime ----------
   useEffect(() => {
     if (!currentUserId) return
     const channel = supabase
@@ -122,7 +106,7 @@ export function useFriends(currentUserId: string | null) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'friendships' },
         () => {
-          // Anything could affect us; re-load. Cheap because lists are small.
+
           load()
         },
       )
@@ -133,7 +117,6 @@ export function useFriends(currentUserId: string | null) {
     }
   }, [currentUserId, load])
 
-  // ---------- actions ----------
   const sendRequest = useCallback(
     async (addresseeId: string) => {
       if (!currentUserId) return { error: 'Not signed in' }
@@ -158,18 +141,12 @@ export function useFriends(currentUserId: string | null) {
     return { error: null }
   }, [])
 
-  // Used for: decline incoming / cancel outgoing / unfriend
   const declineOrCancel = useCallback(async (friendshipId: string) => {
     const { error } = await supabase.from('friendships').delete().eq('id', friendshipId)
     if (error) return { error: error.message }
     return { error: null }
   }, [])
 
-  /**
-   * Search for users by username or email substring. Excludes:
-   *   - the current user
-   *   - users I'm already connected to (any state)
-   */
   const searchUsers = useCallback(
     async (query: string): Promise<PublicUser[]> => {
       const q = query.trim()

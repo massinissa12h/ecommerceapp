@@ -1,4 +1,3 @@
-// Animation variants for Framer Motion
 export const animations = {
   container: {
     hidden: { opacity: 0 },

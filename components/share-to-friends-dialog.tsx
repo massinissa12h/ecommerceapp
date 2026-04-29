@@ -85,10 +85,10 @@ export function ShareToFriendsDialog({
     }
 
     setSentCount(selected.size)
-    // Auto-close after a beat
+
     setTimeout(() => {
       onOpenChange(false)
-      // Reset for next time
+
       setSelected(new Set())
       setNote('')
       setFilter('')
@@ -122,7 +122,7 @@ export function ShareToFriendsDialog({
           </div>
         ) : (
           <>
-            {/* Friend search */}
+
             <div className="relative">
               <Input
                 value={filter}
@@ -133,7 +133,6 @@ export function ShareToFriendsDialog({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             </div>
 
-            {/* Friend list */}
             <div className="max-h-64 overflow-y-auto space-y-1 -mx-1 px-1">
               {loading ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
@@ -185,7 +184,6 @@ export function ShareToFriendsDialog({
               )}
             </div>
 
-            {/* Optional note */}
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}

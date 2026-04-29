@@ -25,7 +25,6 @@ export default function FriendsPage() {
   const [activePeer, setActivePeer] = useState<PublicUser | null>(null)
   const [tab, setTab] = useState<'friends' | 'requests' | 'find'>('friends')
 
-  // Auth gate
   useEffect(() => {
     let cancelled = false
     const run = async () => {
@@ -62,7 +61,6 @@ export default function FriendsPage() {
 
   const { unreadMessages } = useSocialNotifications(userId)
 
-  // Per-friend unread counts (separate query so we don't refetch on every msg)
   const [unreadByPeerId, setUnreadByPeerId] = useState<Map<string, number>>(new Map())
   useEffect(() => {
     if (!userId) return
@@ -81,14 +79,13 @@ export default function FriendsPage() {
       setUnreadByPeerId(map)
     }
     run()
-    // re-run when global unread count changes (cheap heuristic)
+
   }, [userId, unreadMessages, activePeer?.id])
 
   const openChat = (f: FriendshipWithUser) => {
     setActivePeer(f.other)
   }
 
-  // Deep-link: ?with=<userId> auto-opens the chat with that friend.
   useEffect(() => {
     if (!peerParam || activePeer?.id === peerParam) return
     const match = friends.find((f) => f.other.id === peerParam)
@@ -136,7 +133,7 @@ export default function FriendsPage() {
         </motion.div>
 
         <div className="grid lg:grid-cols-[380px_1fr] gap-6">
-          {/* LEFT: Tabs panel */}
+
           <div className="bg-white rounded-3xl border border-border/60 shadow-sm p-4 lg:sticky lg:top-24 lg:self-start">
             <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
               <TabsList className="w-full grid grid-cols-3 h-auto bg-secondary/70 rounded-2xl p-1">
@@ -204,7 +201,6 @@ export default function FriendsPage() {
             </Tabs>
           </div>
 
-          {/* RIGHT: Chat panel */}
           <ChatPanel
             currentUserId={userId}
             peer={activePeer}

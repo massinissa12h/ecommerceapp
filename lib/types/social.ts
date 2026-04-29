@@ -1,5 +1,3 @@
-// Shared types for the friends + chat feature
-
 export type FriendshipStatus = 'pending' | 'accepted'
 
 export interface Friendship {
@@ -28,8 +26,6 @@ export interface ProductShareMetadata {
 
 export type MessageMetadata = ProductShareMetadata | Record<string, unknown> | null
 
-// Friendship row joined with the *other* user (the one you're not).
-// `direction` tells you whether you sent (outgoing) or received (incoming) the request.
 export interface FriendshipWithUser extends Friendship {
   other: PublicUser
   direction: 'incoming' | 'outgoing'

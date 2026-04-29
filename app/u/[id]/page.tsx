@@ -73,7 +73,6 @@ export default function PublicProfilePage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [notFound, setNotFound] = useState(false)
 
-  // ---------- load profile + stats + relationship ----------
   const load = useCallback(async () => {
     setLoading(true)
     setNotFound(false)
@@ -82,7 +81,6 @@ export default function PublicProfilePage() {
     const myId = sessionData.session?.user?.id ?? null
     setMe(myId)
 
-    // Fetch user + profile rows in parallel
     const [{ data: userRow }, { data: profileRow }] = await Promise.all([
       supabase.from('users').select('id, username, email, created_at').eq('id', profileId).maybeSingle(),
       supabase
@@ -111,7 +109,6 @@ export default function PublicProfilePage() {
       avatar_url: profileRow?.avatar_url ?? null,
     })
 
-    // Stats — count queries
     const [{ count: reviewCount }, { count: friendCount }, { count: likeCount }] =
       await Promise.all([
         supabase
@@ -136,7 +133,6 @@ export default function PublicProfilePage() {
       likeCount: likeCount ?? 0,
     })
 
-    // Relationship
     if (!myId) {
       setRelationship({ kind: 'none' })
     } else if (myId === profileId) {
@@ -168,7 +164,6 @@ export default function PublicProfilePage() {
     load()
   }, [load])
 
-  // ---------- actions ----------
   const sendRequest = async () => {
     if (!me) return router.push('/login')
     setActionLoading(true)
@@ -205,7 +200,6 @@ export default function PublicProfilePage() {
     setActionLoading(false)
   }
 
-  // ---------- render ----------
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
@@ -265,14 +259,13 @@ export default function PublicProfilePage() {
           Back
         </Link>
 
-        {/* Hero card */}
         <motion.div
           initial="hidden"
           animate="visible"
           variants={fadeUp}
           className="relative bg-white border border-border rounded-3xl shadow-sm overflow-hidden"
         >
-          {/* Decorative gradient banner */}
+
           <div className="h-32 bg-gradient-to-br from-primary via-primary/80 to-primary/60 relative">
             <div className="absolute -bottom-1 -right-4 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
             <div className="absolute top-3 left-4 inline-flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur text-white text-xs px-3 py-1 border border-white/20">
@@ -282,7 +275,7 @@ export default function PublicProfilePage() {
           </div>
 
           <div className="px-6 md:px-10 pb-8">
-            {/* Avatar + actions row */}
+
             <div className="flex flex-col md:flex-row md:items-end md:justify-between -mt-12 gap-4">
               <Avatar className="size-24 ring-4 ring-white shadow-lg bg-white">
                 {profile.avatar_url ? (
@@ -373,7 +366,6 @@ export default function PublicProfilePage() {
               </div>
             </div>
 
-            {/* Identity */}
             <div className="mt-4">
               <h1 className="text-3xl font-bold tracking-tight">{fullName}</h1>
               {profile.username && (
@@ -385,14 +377,12 @@ export default function PublicProfilePage() {
               </div>
             </div>
 
-            {/* Bio */}
             {profile.bio && (
               <p className="mt-5 text-foreground leading-relaxed whitespace-pre-wrap bg-secondary/40 border border-border/60 rounded-2xl px-4 py-3">
                 {profile.bio}
               </p>
             )}
 
-            {/* Stats */}
             <div className="grid grid-cols-3 gap-3 mt-6">
               {[
                 { label: 'Friends', value: stats.friendCount, Icon: Users },
@@ -412,7 +402,6 @@ export default function PublicProfilePage() {
           </div>
         </motion.div>
 
-        {/* Recent reviews — public surface that shows personality */}
         <RecentReviews userId={profile.id} />
       </main>
 
@@ -476,7 +465,7 @@ function RecentReviews({ userId }: { userId: string }) {
             className="flex gap-3 items-start p-3 rounded-2xl border border-border/60 hover:border-primary/30 transition-colors"
           >
             {r.products?.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
+
               <img
                 src={r.products.image_url}
                 alt={r.products.name}

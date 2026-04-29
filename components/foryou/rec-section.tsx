@@ -9,21 +9,14 @@ interface RecSectionProps {
   title: string
   subtitle?: string
   icon: LucideIcon
-  accent?: string // tailwind text color class for the icon
+  accent?: string
   loading: boolean
   error?: string | null
   products: RecommendedProduct[]
   emptyMessage?: string
-  badge?: string // shown on each card
+  badge?: string
 }
 
-/**
- * One horizontally-scrollable carousel of recommendations. Used for every
- * For You section (Picked for You, Trending, Friends, Because you viewed…).
- *
- * Renders skeletons while loading, a friendly empty state when there are no
- * products, and surfaces errors inline rather than crashing the page.
- */
 export function RecSection({
   title,
   subtitle,
@@ -49,9 +42,7 @@ export function RecSection({
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-            {subtitle && (
-              <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
-            )}
+            {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
           </div>
         </div>
       </div>
@@ -68,9 +59,7 @@ export function RecSection({
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {products.map((p) => (
-            <RecProductCard key={p.id} product={p} badge={badge} />
-          ))}
+          {products.map((p) => <RecProductCard key={p.id} product={p} badge={badge} />)}
         </div>
       )}
     </motion.section>
@@ -81,10 +70,7 @@ function SectionSkeleton() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-2xl border border-border/60 overflow-hidden bg-white"
-        >
+        <div key={i} className="rounded-2xl border border-border/60 overflow-hidden bg-white">
           <div className="aspect-square bg-secondary/60 animate-pulse" />
           <div className="p-3 space-y-2">
             <div className="h-3 w-1/3 bg-secondary/70 rounded animate-pulse" />

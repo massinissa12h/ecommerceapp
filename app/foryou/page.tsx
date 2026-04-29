@@ -3,14 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import {
-  ArrowRight,
-  Sparkles,
-  Users,
-  TrendingUp,
-  Eye,
-  Loader2,
-} from 'lucide-react'
+import { ArrowRight, Sparkles, Users, TrendingUp, Eye, Loader2 } from 'lucide-react'
 
 import { supabase } from '@/lib/supabaseClient'
 import { Navbar } from '@/components/navbar'
@@ -34,8 +27,6 @@ interface ContentSection {
   products: RecommendedProduct[]
 }
 
-// Friendly wrapper around the raw error so the UI can suggest a fix
-// when the FastAPI service is unreachable.
 function describeEngineError(e: unknown): string {
   const msg = (e as Error)?.message || 'unknown error'
   if (/503|unreachable|ECONNREFUSED|fetch failed/i.test(msg)) {
@@ -71,21 +62,15 @@ export default function ForYouPage() {
       if (cancelled) return
       const u = data.session?.user
       setUser(u ? { id: u.id, email: u.email } : null)
-
       if (u) {
         const { data: row } = await supabase
-          .from('users')
-          .select('username')
-          .eq('id', u.id)
-          .maybeSingle()
+          .from('users').select('username').eq('id', u.id).maybeSingle()
         if (!cancelled) setUsername((row?.username as string | null) ?? null)
       }
       if (!cancelled) setAuthLoading(false)
     }
     run()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -93,6 +78,7 @@ export default function ForYouPage() {
     const ctrl = new AbortController()
     setPickedLoading(true)
     setPickedError(null)
+
     fetchHomepage({ userId: user.id, n: 8, signal: ctrl.signal })
       .then(hydrateRecommendations)
       .then(setPicked)
@@ -101,6 +87,7 @@ export default function ForYouPage() {
         setPickedError(describeEngineError(e))
       })
       .finally(() => setPickedLoading(false))
+
     return () => ctrl.abort()
   }, [user])
 
@@ -143,42 +130,34 @@ export default function ForYouPage() {
       )
       setContentLoading(false)
 
-      await Promise.all(
-        anchors.map(async (anchor) => {
-          try {
-            const recs = await fetchRecommendForItem({
-              userId: user.id,
-              itemId: anchor.id,
-              n: 6,
-            })
-            const hydrated = await hydrateRecommendations(recs)
-            const filtered = hydrated.filter((p) => p.id !== anchor.id)
-            if (cancelled) return
-            setContentSections((prev) =>
-              prev.map((s) =>
-                s.anchor.id === anchor.id
-                  ? { ...s, loading: false, products: filtered }
-                  : s,
-              ),
-            )
-          } catch (e) {
-            if (cancelled) return
-            setContentSections((prev) =>
-              prev.map((s) =>
-                s.anchor.id === anchor.id
-                  ? { ...s, loading: false, error: describeEngineError(e) }
-                  : s,
-              ),
-            )
-          }
-        }),
-      )
+      await Promise.all(anchors.map(async (anchor) => {
+        try {
+          const recs = await fetchRecommendForItem({ userId: user.id, itemId: anchor.id, n: 6 })
+          const hydrated = await hydrateRecommendations(recs)
+          const filtered = hydrated.filter((p) => p.id !== anchor.id)
+          if (cancelled) return
+          setContentSections((prev) =>
+            prev.map((s) =>
+              s.anchor.id === anchor.id
+                ? { ...s, loading: false, products: filtered }
+                : s,
+            ),
+          )
+        } catch (e) {
+          if (cancelled) return
+          setContentSections((prev) =>
+            prev.map((s) =>
+              s.anchor.id === anchor.id
+                ? { ...s, loading: false, error: describeEngineError(e) }
+                : s,
+            ),
+          )
+        }
+      }))
     }
 
     run()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [user])
 
   if (authLoading) {
@@ -215,7 +194,6 @@ export default function ForYouPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-secondary/30 to-background">
       <Navbar />
-
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-10 space-y-12">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -224,16 +202,14 @@ export default function ForYouPage() {
         >
           <div className="flex items-center gap-2 text-primary">
             <Sparkles className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">
-              Curated for you
-            </span>
+            <span className="text-xs font-bold uppercase tracking-wider">Curated for you</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
             {username ? `Welcome back, ${username}` : 'Your For You feed'}
           </h1>
           <p className="text-muted-foreground max-w-xl">
-            Powered by content-based, collaborative, and social signals. Every
-            recommendation comes with a &ldquo;why this?&rdquo; explanation.
+            Powered by content-based, collaborative, and social signals. Every recommendation
+            comes with a &ldquo;why this?&rdquo; explanation.
           </p>
         </motion.div>
 
@@ -301,7 +277,6 @@ export default function ForYouPage() {
           badge="Trending"
         />
       </main>
-
       <Footer />
     </div>
   )

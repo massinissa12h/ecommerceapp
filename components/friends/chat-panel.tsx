@@ -37,7 +37,7 @@ function ProductShareCard({
       <div className="flex">
         <div className="relative w-20 h-20 shrink-0 bg-secondary flex items-center justify-center">
           {meta.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
+
             <img src={meta.image_url} alt={meta.name} className="w-full h-full object-cover" />
           ) : (
             <ShoppingBag className="w-6 h-6 text-muted-foreground" />
@@ -88,7 +88,6 @@ export function ChatPanel({ currentUserId, peer, onClose }: ChatPanelProps) {
   const [sending, setSending] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -121,7 +120,7 @@ export function ChatPanel({ currentUserId, peer, onClose }: ChatPanelProps) {
 
   return (
     <div className="flex flex-1 flex-col bg-white rounded-3xl border border-border/60 shadow-sm overflow-hidden min-h-[60vh] max-h-[80vh]">
-      {/* Header */}
+
       <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-secondary/40">
         <div className="flex items-center gap-3">
           <UserAvatar user={peer} linkToId={peer.id} />
@@ -145,7 +144,6 @@ export function ChatPanel({ currentUserId, peer, onClose }: ChatPanelProps) {
         </Button>
       </div>
 
-      {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
         {loading && messages.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
@@ -196,7 +194,6 @@ export function ChatPanel({ currentUserId, peer, onClose }: ChatPanelProps) {
         )}
       </div>
 
-      {/* Composer */}
       <form
         onSubmit={handleSend}
         className="border-t border-border bg-white p-3 flex items-center gap-2"

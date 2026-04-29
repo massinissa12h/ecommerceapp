@@ -4,22 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import type { Message } from '@/lib/types/social'
 
-/**
- * useMessages — load the message history with one peer and stream new ones via Realtime.
- *
- * Inserts new messages locally on send (optimistic) and de-dupes when the realtime echo
- * arrives. Marks incoming messages as read whenever this conversation is open.
- */
 export function useMessages(currentUserId: string | null, peerId: string | null) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Used to ignore realtime echoes of messages already in state
   const seenIds = useRef<Set<string>>(new Set())
   const channelIdRef = useRef(Math.random().toString(36).slice(2))
 
-  // ---------- loader ----------
   const load = useCallback(async () => {
     if (!currentUserId || !peerId) {
       setMessages([])
@@ -53,13 +45,9 @@ export function useMessages(currentUserId: string | null, peerId: string | null)
     load()
   }, [load])
 
-  // ---------- realtime ----------
   useEffect(() => {
     if (!currentUserId || !peerId) return
 
-    // Filter to messages between us and this peer (either direction).
-    // Postgres-changes filters don't support OR, so we subscribe broadly to messages
-    // involving the current user and filter in code — small volume per user.
     const channel = supabase
       .channel(`messages:${currentUserId}:${peerId}:${channelIdRef.current}`)
       .on(
@@ -103,7 +91,6 @@ export function useMessages(currentUserId: string | null, peerId: string | null)
     }
   }, [currentUserId, peerId])
 
-  // ---------- mark unread incoming as read ----------
   useEffect(() => {
     if (!currentUserId || !peerId) return
     const unreadIds = messages
@@ -119,7 +106,6 @@ export function useMessages(currentUserId: string | null, peerId: string | null)
       })
   }, [messages, currentUserId, peerId])
 
-  // ---------- send ----------
   const sendMessage = useCallback(
     async (content: string) => {
       const trimmed = content.trim()

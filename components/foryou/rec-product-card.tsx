@@ -7,14 +7,9 @@ import type { RecommendedProduct } from '@/lib/recommender'
 
 interface RecProductCardProps {
   product: RecommendedProduct
-  // Optional badge label (e.g., the source name "content" or "collaborative")
   badge?: string
 }
 
-/**
- * Compact product card used in the For You sections. Shows the product image,
- * name, price, and an "explanation chip" pulled from the engine's XAI layer.
- */
 export function RecProductCard({ product, badge }: RecProductCardProps) {
   return (
     <motion.div
@@ -25,7 +20,7 @@ export function RecProductCard({ product, badge }: RecProductCardProps) {
       <Link href={`/product/${product.id}`} className="block">
         <div className="relative aspect-square bg-secondary/50 overflow-hidden">
           {product.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
+
             <img
               src={product.image_url}
               alt={product.name}
@@ -47,15 +42,12 @@ export function RecProductCard({ product, badge }: RecProductCardProps) {
 
       <div className="flex-1 flex flex-col p-3 gap-2">
         {product.category && (
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            {product.category}
-          </span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{product.category}</span>
         )}
         <Link href={`/product/${product.id}`} className="hover:text-primary transition-colors">
           <h3 className="font-semibold text-sm leading-snug line-clamp-2">{product.name}</h3>
         </Link>
 
-        {/* Explanation chip — from the engine's XAI layer. Keeps recs trustworthy. */}
         {product.explanation && (
           <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-secondary/40 rounded-lg px-2 py-1.5">
             <Sparkles className="w-3 h-3 mt-0.5 text-primary shrink-0" />
@@ -65,9 +57,7 @@ export function RecProductCard({ product, badge }: RecProductCardProps) {
 
         <div className="mt-auto pt-1 flex items-center justify-between">
           {product.price !== null && (
-            <span className="font-bold text-primary text-base">
-              ${Number(product.price).toFixed(2)}
-            </span>
+            <span className="font-bold text-primary text-base">${Number(product.price).toFixed(2)}</span>
           )}
         </div>
       </div>

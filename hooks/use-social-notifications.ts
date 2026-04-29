@@ -3,18 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
-/**
- * useSocialNotifications — counts of:
- *   - unread direct messages received
- *   - pending incoming friend requests
- *
- * Refreshes whenever the relevant tables change (Realtime).
- */
 export function useSocialNotifications(currentUserId: string | null) {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [pendingRequests, setPendingRequests] = useState(0)
-  // Unique per hook instance — multiple components can subscribe at the same time
-  // (e.g. NotificationBell in the navbar AND the FriendsPage) without sharing a channel.
+
   const channelIdRef = useRef(Math.random().toString(36).slice(2))
 
   const refresh = useCallback(async () => {

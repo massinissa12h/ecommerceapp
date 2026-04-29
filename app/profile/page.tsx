@@ -236,7 +236,7 @@ export default function ProfilePage() {
     setAvatarUploading(true)
     try {
       const ext = file.name.split('.').pop() || 'png'
-      // Storage RLS requires the path to begin with the user's ID folder.
+
       const path = `${user.id}/avatar-${Date.now()}.${ext}`
 
       const { error: upErr } = await supabase.storage
@@ -408,7 +408,7 @@ export default function ProfilePage() {
                     className="w-24 h-24 rounded-3xl bg-white/15 border border-white/20 backdrop-blur overflow-hidden flex items-center justify-center text-3xl font-bold shadow-xl"
                   >
                     {formData.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
+
                       <img
                         src={formData.avatarUrl}
                         alt="Your avatar"

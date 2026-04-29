@@ -34,7 +34,6 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 20000])
   const [minRating, setMinRating] = useState(0)
 
-  // ── Fetch distinct categories from Supabase ──────────────────────────
   useEffect(() => {
     const fetchCategories = async () => {
       setLoadingCategories(true)
@@ -57,7 +56,6 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
     fetchCategories()
   }, [])
 
-  // ── Handlers ──────────────────────────────────────────────────────────
   const emit = (
     cats: string[],
     price: [number, number],
@@ -98,11 +96,9 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
     priceRange[1] < 20000 ||
     minRating > 0
 
-  // ── Render ────────────────────────────────────────────────────────────
   return (
     <aside className="w-full lg:w-64 flex-shrink-0 h-fit lg:sticky lg:top-24 space-y-1">
 
-      {/* ── Categories ──────────────────────────────────────────────── */}
       <div className="bg-white rounded-lg border border-border p-5">
         <div className="flex items-center gap-2 mb-4">
           <LayoutList className="w-4 h-4 text-muted-foreground" />
@@ -145,7 +141,6 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
         )}
       </div>
 
-      {/* ── Price Range ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-lg border border-border p-5">
         <div className="flex items-center gap-2 mb-4">
           <DollarSign className="w-4 h-4 text-muted-foreground" />
@@ -172,7 +167,6 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
         </div>
       </div>
 
-      {/* ── Rating ──────────────────────────────────────────────────── */}
       <div className="bg-white rounded-lg border border-border p-5">
         <div className="flex items-center gap-2 mb-4">
           <Star className="w-4 h-4 text-muted-foreground" />
@@ -203,7 +197,6 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
         </div>
       </div>
 
-      {/* ── Reset ───────────────────────────────────────────────────── */}
       {hasActiveFilters && (
         <Button
           onClick={resetFilters}

@@ -57,9 +57,6 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
     return () => listener?.subscription.unsubscribe()
   }, [])
 
-  // Load avatar_url from profiles whenever the signed-in user changes,
-  // and stay in sync with realtime updates so the navbar reflects edits
-  // made on the /profile page without a hard refresh.
   useEffect(() => {
     if (!user?.id) {
       setAvatarUrl(null)
@@ -214,7 +211,7 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
                 className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center overflow-hidden ring-2 ring-primary/10"
               >
                 {avatarUrl || user.user_metadata?.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
+
                   <img
                     src={avatarUrl ?? user.user_metadata?.avatar_url}
                     alt="Avatar"
