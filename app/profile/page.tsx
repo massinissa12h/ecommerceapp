@@ -15,7 +15,6 @@ import {
   Loader2,
   Check,
   Heart,
-  Bookmark,
   Star,
   AlertCircle,
   Lock,
@@ -27,7 +26,11 @@ import {
   Phone,
   PackageSearch,
   PenLine,
+  Camera,
+  ExternalLink,
+  Trash2,
 } from 'lucide-react'
+import { UserAvatar } from '@/components/friends/user-avatar'
 
 interface Product {
   id: string
@@ -67,9 +70,10 @@ export default function ProfilePage() {
   const [changeSuccess, setChangeSuccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
-  const [savedProducts, setSavedProducts] = useState<Product[]>([])
   const [likedProducts, setLikedProducts] = useState<Product[]>([])
   const [userReviews, setUserReviews] = useState<any[]>([])
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -86,6 +90,8 @@ export default function ProfilePage() {
     city: '',
     postalCode: '',
     country: '',
+    bio: '',
+    avatarUrl: '' as string | null | '',
   })
 
   useEffect(() => {
@@ -118,6 +124,8 @@ export default function ProfilePage() {
           city: profile.city || '',
           postalCode: profile.postal_code || '',
           country: profile.country || '',
+          bio: profile.bio || '',
+          avatarUrl: profile.avatar_url || '',
         })
       } else {
         setFormData((prev) => ({
@@ -146,22 +154,13 @@ export default function ProfilePage() {
       return
     }
 
-    const savedIds =
-      interactionsData
-        ?.filter((item: any) => item.action === 'save' || item.action === 'saved')
-        .map((item: any) => item.product_id)
-        .filter(Boolean) ?? []
-
     const likedIds =
       interactionsData
         ?.filter((item: any) => item.action === 'like' || item.action === 'liked')
         .map((item: any) => item.product_id)
         .filter(Boolean) ?? []
 
-    const allProductIds = [...new Set([...savedIds, ...likedIds])]
-
-    if (allProductIds.length === 0) {
-      setSavedProducts([])
+    if (likedIds.length === 0) {
       setLikedProducts([])
       return
     }
@@ -169,7 +168,7 @@ export default function ProfilePage() {
     const { data: productsData, error: productsError } = await supabase
       .from('products')
       .select('*')
-      .in('id', allProductIds)
+      .in('id', likedIds)
 
     if (productsError) {
       console.error('Failed to fetch interaction products:', productsError)
@@ -182,8 +181,7 @@ export default function ProfilePage() {
       rating: 0,
     }))
 
-    setSavedProducts(products.filter((product) => savedIds.includes(product.id)))
-    setLikedProducts(products.filter((product) => likedIds.includes(product.id)))
+    setLikedProducts(products)
   }
 
   const fetchUserReviews = async (userId: string) => {
@@ -214,9 +212,65 @@ export default function ProfilePage() {
     setUserReviews(data ?? [])
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+    setAvatarError(null)
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Image must be 5 MB or smaller.')
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please select an image file.')
+      return
+    }
+
+    setAvatarUploading(true)
+    try {
+      const ext = file.name.split('.').pop() || 'png'
+      // Storage RLS requires the path to begin with the user's ID folder.
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`
+
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, cacheControl: '3600' })
+      if (upErr) throw upErr
+
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
+      const publicUrl = pub.publicUrl
+
+      const { error: dbErr } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, avatar_url: publicUrl })
+      if (dbErr) throw dbErr
+
+      setFormData((prev) => ({ ...prev, avatarUrl: publicUrl }))
+    } catch (err: any) {
+      setAvatarError(err.message || 'Upload failed')
+    } finally {
+      setAvatarUploading(false)
+      if (e.target) e.target.value = ''
+    }
+  }
+
+  const handleRemoveAvatar = async () => {
+    if (!user) return
+    setAvatarUploading(true)
+    setAvatarError(null)
+    try {
+      await supabase.from('profiles').upsert({ id: user.id, avatar_url: null })
+      setFormData((prev) => ({ ...prev, avatarUrl: '' }))
+    } finally {
+      setAvatarUploading(false)
+    }
   }
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -234,6 +288,8 @@ export default function ProfilePage() {
         city: formData.city,
         postal_code: formData.postalCode,
         country: formData.country,
+        bio: formData.bio || null,
+        avatar_url: formData.avatarUrl || null,
       })
 
       if (error) {
@@ -346,12 +402,43 @@ export default function ProfilePage() {
               className="flex flex-col md:flex-row md:items-end md:justify-between gap-8"
             >
               <div className="flex items-center gap-5">
-                <motion.div
-                  whileHover={{ scale: 1.04, rotate: -3 }}
-                  className="w-20 h-20 rounded-3xl bg-white/15 border border-white/20 backdrop-blur flex items-center justify-center text-3xl font-bold shadow-xl"
-                >
-                  {displayName.charAt(0).toUpperCase()}
-                </motion.div>
+                <div className="relative shrink-0 group">
+                  <motion.div
+                    whileHover={{ scale: 1.04 }}
+                    className="w-24 h-24 rounded-3xl bg-white/15 border border-white/20 backdrop-blur overflow-hidden flex items-center justify-center text-3xl font-bold shadow-xl"
+                  >
+                    {formData.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={formData.avatarUrl}
+                        alt="Your avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{displayName.charAt(0).toUpperCase()}</span>
+                    )}
+                  </motion.div>
+
+                  <label
+                    htmlFor="avatar-upload"
+                    className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-white text-primary border border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+                    title="Change avatar"
+                  >
+                    {avatarUploading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4" />
+                    )}
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      disabled={avatarUploading}
+                    />
+                  </label>
+                </div>
 
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/20 px-3 py-1 text-xs mb-3 backdrop-blur">
@@ -364,14 +451,46 @@ export default function ProfilePage() {
                   </h1>
 
                   <p className="text-primary-foreground/80 mt-2">
-                    Manage your account, saved items, likes, and reviews.
+                    Manage your account, likes, and reviews.
                   </p>
+
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {user && (
+                      <Link href={`/u/${user.id}`}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="rounded-full gap-1.5"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          View public profile
+                        </Button>
+                      </Link>
+                    )}
+                    {formData.avatarUrl && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-full gap-1.5 text-white/80 hover:text-white hover:bg-white/10"
+                        onClick={handleRemoveAvatar}
+                        disabled={avatarUploading}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Remove avatar
+                      </Button>
+                    )}
+                  </div>
+
+                  {avatarError && (
+                    <p className="text-xs text-rose-100 bg-rose-500/30 mt-2 px-3 py-1 rounded-full inline-block">
+                      {avatarError}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 min-w-full md:min-w-[360px]">
+              <div className="grid grid-cols-2 gap-3 min-w-full md:min-w-[260px]">
                 {[
-                  ['Saved', savedProducts.length, Bookmark],
                   ['Liked', likedProducts.length, Heart],
                   ['Reviews', userReviews.length, Star],
                 ].map(([label, value, Icon]: any) => (
@@ -473,6 +592,22 @@ export default function ProfilePage() {
                   />
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 </div>
+              </div>
+
+              <div>
+                <LabelText>Bio</LabelText>
+                <textarea
+                  name="bio"
+                  value={formData.bio}
+                  onChange={handleInputChange}
+                  placeholder="Tell other shoppers a bit about yourself…"
+                  rows={3}
+                  maxLength={500}
+                  className="w-full border border-border rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                />
+                <p className="text-xs text-muted-foreground mt-1 text-right">
+                  {formData.bio.length}/500
+                </p>
               </div>
             </motion.div>
 
@@ -639,14 +774,6 @@ export default function ProfilePage() {
                 </div>
               </form>
             </motion.div>
-
-            <ProductSection
-              icon={Bookmark}
-              title="Saved Products"
-              count={savedProducts.length}
-              emptyText="You have no saved products yet."
-              products={savedProducts}
-            />
 
             <ProductSection
               icon={Heart}

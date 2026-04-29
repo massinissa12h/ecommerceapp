@@ -17,7 +17,7 @@ import {
   Loader2,
   AlertCircle,
   Heart,
-  Bookmark,
+  Share2,
   Send,
   Pencil,
   Trash2,
@@ -25,6 +25,7 @@ import {
   Truck,
   RotateCcw,
 } from 'lucide-react'
+import { ShareToFriendsDialog } from '@/components/share-to-friends-dialog'
 import { useCart } from '@/app/hooks/useCart'
 
 interface Product {
@@ -123,8 +124,8 @@ export default function ProductDetailsPage() {
 
   const [userId, setUserId] = useState<string | null>(null)
   const [isLiked, setIsLiked] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
   const [interactionLoading, setInteractionLoading] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewsLoading, setReviewsLoading] = useState(true)
@@ -255,7 +256,6 @@ export default function ProductDetailsPage() {
         .eq('product_id', productId)
 
       setIsLiked(data?.some((r) => r.action === 'like') ?? false)
-      setIsSaved(data?.some((r) => r.action === 'save') ?? false)
     }
 
     fetchInteractions()
@@ -312,15 +312,12 @@ export default function ProductDetailsPage() {
     fetchReviews()
   }, [fetchReviews])
 
-  const toggleInteraction = async (action: 'like' | 'save') => {
+  const toggleInteraction = async (action: 'like') => {
     if (!userId) return
 
     setInteractionLoading(true)
 
-    const isActive = action === 'like' ? isLiked : isSaved
-    const setter = action === 'like' ? setIsLiked : setIsSaved
-
-    if (isActive) {
+    if (isLiked) {
       await supabase
         .from('interactions')
         .delete()
@@ -328,7 +325,7 @@ export default function ProductDetailsPage() {
         .eq('product_id', productId)
         .eq('action', action)
 
-      setter(false)
+      setIsLiked(false)
     } else {
       await supabase.from('interactions').upsert(
         {
@@ -342,7 +339,7 @@ export default function ProductDetailsPage() {
         }
       )
 
-      setter(true)
+      setIsLiked(true)
     }
 
     setInteractionLoading(false)
@@ -650,21 +647,13 @@ export default function ProductDetailsPage() {
 
                 <motion.button
                   whileTap={{ scale: 0.94 }}
-                  onClick={() => toggleInteraction('save')}
-                  disabled={!userId || interactionLoading}
-                  title={userId ? (isSaved ? 'Unsave' : 'Save') : 'Sign in to save'}
-                  className={`flex flex-col items-center justify-center gap-0.5 w-16 h-12 rounded-xl border transition-all text-xs font-medium ${
-                    isSaved
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary'
-                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  onClick={() => setShareOpen(true)}
+                  disabled={!userId}
+                  title={userId ? 'Share with a friend' : 'Sign in to share'}
+                  className="flex flex-col items-center justify-center gap-0.5 w-16 h-12 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Bookmark
-                    className={`w-4 h-4 ${
-                      isSaved ? 'fill-primary text-primary' : ''
-                    }`}
-                  />
-                  <span>{isSaved ? 'Saved' : 'Save'}</span>
+                  <Share2 className="w-4 h-4" />
+                  <span>Share</span>
                 </motion.button>
               </div>
 
@@ -673,8 +662,22 @@ export default function ProductDetailsPage() {
                   <Link href="/login" className="text-primary hover:underline">
                     Sign in
                   </Link>{' '}
-                  to like, save, and review products.
+                  to like, share, and review products.
                 </p>
+              )}
+
+              {userId && product && (
+                <ShareToFriendsDialog
+                  open={shareOpen}
+                  onOpenChange={setShareOpen}
+                  currentUserId={userId}
+                  product={{
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    image_url: product.image_url,
+                  }}
+                />
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

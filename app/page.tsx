@@ -91,9 +91,8 @@ export default function Home() {
         const reviewStats = reviewsByProduct[p.id]
 
         const avgRating = reviewStats
-          ? reviewStats.total / reviewStats.count
-          : 0
-
+              ? Number((reviewStats.total / reviewStats.count).toFixed(1))
+              : 0
         return {
           ...p,
           rating: avgRating,

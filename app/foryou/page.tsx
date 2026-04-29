@@ -1,217 +1,308 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import {
+  ArrowRight,
+  Sparkles,
+  Users,
+  TrendingUp,
+  Eye,
+  Loader2,
+} from 'lucide-react'
+
 import { supabase } from '@/lib/supabaseClient'
 import { Navbar } from '@/components/navbar'
 import { Footer } from '@/components/footer'
-import Image from 'next/image'
-import Link from 'next/link'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { RecSection } from '@/components/foryou/rec-section'
 
-interface Product {
-  id: string
-  name: string
-  description: string
-  price: number
-  image_url: string
-  rating: number
-  category: string
+import {
+  fetchHomepage,
+  fetchRecommendForItem,
+  fetchFriendsLiked,
+  fetchRecentViews,
+  hydrateRecommendations,
+  type RecommendedProduct,
+  type HydratedProduct,
+} from '@/lib/recommender'
+
+interface ContentSection {
+  anchor: HydratedProduct
+  loading: boolean
+  error: string | null
+  products: RecommendedProduct[]
 }
 
-// Mock products
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: '1',
-    name: 'Premium Wireless Headphones',
-    description: 'High-quality sound with noise cancellation',
-    price: 199.99,
-    image_url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop',
-    rating: 4.8,
-    category: 'Electronics',
-  },
-  {
-    id: '2',
-    name: 'Classic Analog Watch',
-    description: 'Elegant timepiece with leather strap',
-    price: 149.99,
-    image_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop',
-    rating: 4.6,
-    category: 'Accessories',
-  },
-  {
-    id: '3',
-    name: 'Minimalist Backpack',
-    description: 'Durable and stylish everyday backpack',
-    price: 89.99,
-    image_url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&h=400&fit=crop',
-    rating: 4.7,
-    category: 'Fashion',
-  },
-  {
-    id: '4',
-    name: 'Organic Cotton T-Shirt',
-    description: 'Comfortable and sustainable clothing',
-    price: 34.99,
-    image_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop',
-    rating: 4.5,
-    category: 'Fashion',
-  },
-]
+// Friendly wrapper around the raw error so the UI can suggest a fix
+// when the FastAPI service is unreachable.
+function describeEngineError(e: unknown): string {
+  const msg = (e as Error)?.message || 'unknown error'
+  if (/503|unreachable|ECONNREFUSED|fetch failed/i.test(msg)) {
+    return `Recommender offline. Start the FastAPI service on :8000 and reload (${msg}).`
+  }
+  return `Recommender error: ${msg}`
+}
 
 export default function ForYouPage() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ id: string; email?: string | null } | null>(null)
   const [username, setUsername] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [authLoading, setAuthLoading] = useState(true)
+
+  const [pickedLoading, setPickedLoading] = useState(true)
+  const [pickedError, setPickedError] = useState<string | null>(null)
+  const [picked, setPicked] = useState<RecommendedProduct[]>([])
+
+  const [trendingLoading, setTrendingLoading] = useState(true)
+  const [trendingError, setTrendingError] = useState<string | null>(null)
+  const [trending, setTrending] = useState<RecommendedProduct[]>([])
+
+  const [friendsLoading, setFriendsLoading] = useState(true)
+  const [friendsError, setFriendsError] = useState<string | null>(null)
+  const [friendsLiked, setFriendsLiked] = useState<RecommendedProduct[]>([])
+
+  const [contentSections, setContentSections] = useState<ContentSection[]>([])
+  const [contentLoading, setContentLoading] = useState(true)
 
   useEffect(() => {
-    const getSession = async () => {
+    let cancelled = false
+    const run = async () => {
       const { data } = await supabase.auth.getSession()
-      const currentUser = data.session?.user ?? null
-      setUser(currentUser)
+      if (cancelled) return
+      const u = data.session?.user
+      setUser(u ? { id: u.id, email: u.email } : null)
 
-      if (currentUser) {
-        const { data: userData } = await supabase
+      if (u) {
+        const { data: row } = await supabase
           .from('users')
           .select('username')
-          .eq('id', currentUser.id)
-          .single()
-
-        setUsername(userData?.username ?? null)
+          .eq('id', u.id)
+          .maybeSingle()
+        if (!cancelled) setUsername((row?.username as string | null) ?? null)
       }
-
-      setLoading(false)
+      if (!cancelled) setAuthLoading(false)
     }
-
-    getSession()
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_, session) => {
-        const currentUser = session?.user ?? null
-        setUser(currentUser)
-
-        if (currentUser) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('username')
-            .eq('id', currentUser.id)
-            .single()
-
-          setUsername(userData?.username ?? null)
-        } else {
-          setUsername(null)
-        }
-      }
-    )
-
+    run()
     return () => {
-      listener.subscription.unsubscribe()
+      cancelled = true
     }
   }, [])
 
-  if (loading) {
+  useEffect(() => {
+    if (!user) return
+    const ctrl = new AbortController()
+    setPickedLoading(true)
+    setPickedError(null)
+    fetchHomepage({ userId: user.id, n: 8, signal: ctrl.signal })
+      .then(hydrateRecommendations)
+      .then(setPicked)
+      .catch((e: unknown) => {
+        if ((e as Error).name === 'AbortError') return
+        setPickedError(describeEngineError(e))
+      })
+      .finally(() => setPickedLoading(false))
+    return () => ctrl.abort()
+  }, [user])
+
+  useEffect(() => {
+    const ctrl = new AbortController()
+    setTrendingLoading(true)
+    setTrendingError(null)
+    fetchHomepage({ n: 8, signal: ctrl.signal })
+      .then(hydrateRecommendations)
+      .then(setTrending)
+      .catch((e: unknown) => {
+        if ((e as Error).name === 'AbortError') return
+        setTrendingError(describeEngineError(e))
+      })
+      .finally(() => setTrendingLoading(false))
+    return () => ctrl.abort()
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
+    setFriendsLoading(true)
+    setFriendsError(null)
+    fetchFriendsLiked(user.id, 8)
+      .then(setFriendsLiked)
+      .catch(() => setFriendsError("Couldn't load friend activity."))
+      .finally(() => setFriendsLoading(false))
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+
+    const run = async () => {
+      setContentLoading(true)
+      const anchors = await fetchRecentViews(user.id, 3)
+      if (cancelled) return
+
+      setContentSections(
+        anchors.map((a) => ({ anchor: a, loading: true, error: null, products: [] })),
+      )
+      setContentLoading(false)
+
+      await Promise.all(
+        anchors.map(async (anchor) => {
+          try {
+            const recs = await fetchRecommendForItem({
+              userId: user.id,
+              itemId: anchor.id,
+              n: 6,
+            })
+            const hydrated = await hydrateRecommendations(recs)
+            const filtered = hydrated.filter((p) => p.id !== anchor.id)
+            if (cancelled) return
+            setContentSections((prev) =>
+              prev.map((s) =>
+                s.anchor.id === anchor.id
+                  ? { ...s, loading: false, products: filtered }
+                  : s,
+              ),
+            )
+          } catch (e) {
+            if (cancelled) return
+            setContentSections((prev) =>
+              prev.map((s) =>
+                s.anchor.id === anchor.id
+                  ? { ...s, loading: false, error: describeEngineError(e) }
+                  : s,
+              ),
+            )
+          }
+        }),
+      )
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Navbar />
+        <main className="flex-1 max-w-3xl mx-auto px-4 py-24 text-center">
+          <Sparkles className="w-12 h-12 mx-auto text-primary mb-6" />
+          <h1 className="text-3xl font-bold mb-3">Your personal For You feed</h1>
+          <p className="text-muted-foreground mb-8">
+            Sign in to see picks tailored from your taste, what your friends love,
+            and what&apos;s trending right now.
+          </p>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-full font-medium hover:opacity-90 transition-opacity"
+          >
+            Sign in <ArrowRight className="w-4 h-4" />
+          </Link>
+        </main>
+        <Footer />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-
-      {/* ✅ Navbar */}
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-secondary/30 to-background">
       <Navbar />
 
-      <main className="flex-1">
-
-        {!user ? (
-          <div className="container mx-auto px-4 py-16 text-center">
-            <h1 className="text-3xl font-bold mb-4">For You</h1>
-            <p className="text-muted-foreground mb-8">
-              Please sign in to see personalized recommendations
-            </p>
-
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2 rounded-lg"
-            >
-              Sign In
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-10 space-y-12">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-2"
+        >
+          <div className="flex items-center gap-2 text-primary">
+            <Sparkles className="w-5 h-5" />
+            <span className="text-xs font-bold uppercase tracking-wider">
+              Curated for you
+            </span>
           </div>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+            {username ? `Welcome back, ${username}` : 'Your For You feed'}
+          </h1>
+          <p className="text-muted-foreground max-w-xl">
+            Powered by content-based, collaborative, and social signals. Every
+            recommendation comes with a &ldquo;why this?&rdquo; explanation.
+          </p>
+        </motion.div>
+
+        <RecSection
+          title="Picked for you"
+          subtitle="Based on what shoppers like you have loved"
+          icon={Sparkles}
+          loading={pickedLoading}
+          error={pickedError}
+          products={picked}
+          badge="For you"
+          emptyMessage="Interact with a few products and we'll start tuning this list."
+        />
+
+        {contentLoading ? (
+          <RecSection
+            title="Because you viewed..."
+            subtitle="Similar products to your recent views"
+            icon={Eye}
+            loading
+            products={[]}
+          />
+        ) : contentSections.length === 0 ? (
+          <RecSection
+            title="Because you viewed..."
+            subtitle="Similar products to your recent views"
+            icon={Eye}
+            loading={false}
+            products={[]}
+            emptyMessage="Browse a few products and they'll show up here as starting points."
+          />
         ) : (
-          <div className="container mx-auto px-4 py-12">
-
-            {/* Header */}
-            <div className="mb-12">
-              <div className="flex items-center gap-3 mb-4">
-                <Sparkles className="w-8 h-8 text-primary" />
-                <span className="text-sm font-semibold text-primary uppercase">
-                  Curated For You
-                </span>
-              </div>
-
-              <h1 className="text-4xl font-bold mb-2">
-                {username ? `Welcome back, ${username}` : 'For You'}
-              </h1>
-
-              <p className="text-muted-foreground">
-                Discover products based on your interests
-              </p>
-            </div>
-
-            {/* Products Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {MOCK_PRODUCTS.map((product) => (
-                <Link key={product.id} href={`/products/${product.id}`}>
-                  <div className="bg-card rounded-xl shadow hover:shadow-lg transition overflow-hidden">
-
-                    <div className="relative w-full h-52">
-                      <Image
-                        src={product.image_url}
-                        alt={product.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-
-                    <div className="p-4">
-                      <span className="text-xs text-primary">
-                        {product.category}
-                      </span>
-
-                      <h3 className="font-semibold mt-1">
-                        {product.name}
-                      </h3>
-
-                      <p className="text-sm text-muted-foreground">
-                        {product.description}
-                      </p>
-
-                      <div className="flex justify-between mt-3">
-                        <span className="font-bold text-primary">
-                          ${product.price}
-                        </span>
-
-                        <span className="text-sm">
-                          ⭐ {product.rating}
-                        </span>
-                      </div>
-                    </div>
-
-                  </div>
-                </Link>
-              ))}
-            </div>
-
-          </div>
+          contentSections.map((section) => (
+            <RecSection
+              key={section.anchor.id}
+              title={`Because you viewed ${section.anchor.name}`}
+              subtitle={section.anchor.category ?? 'Similar items'}
+              icon={Eye}
+              loading={section.loading}
+              error={section.error}
+              products={section.products}
+              badge="Similar"
+            />
+          ))
         )}
 
+        <RecSection
+          title="Loved by your friends"
+          subtitle="Products your friends have liked recently"
+          icon={Users}
+          loading={friendsLoading}
+          error={friendsError}
+          products={friendsLiked}
+          badge="Friends"
+          emptyMessage="Add friends to see what they're into."
+        />
+
+        <RecSection
+          title="Trending right now"
+          subtitle="What everyone's looking at on ModernShop"
+          icon={TrendingUp}
+          loading={trendingLoading}
+          error={trendingError}
+          products={trending}
+          badge="Trending"
+        />
       </main>
 
-      {/* ✅ Footer */}
       <Footer />
-
     </div>
   )
 }

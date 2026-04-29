@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NotificationBell } from '@/components/notification-bell'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
@@ -25,6 +26,7 @@ interface NavbarProps {
 export function Navbar({ cartCount = 0 }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
 
@@ -55,6 +57,45 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
     return () => listener?.subscription.unsubscribe()
   }, [])
 
+  // Load avatar_url from profiles whenever the signed-in user changes,
+  // and stay in sync with realtime updates so the navbar reflects edits
+  // made on the /profile page without a hard refresh.
+  useEffect(() => {
+    if (!user?.id) {
+      setAvatarUrl(null)
+      return
+    }
+
+    let cancelled = false
+    const loadAvatar = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (cancelled) return
+      setAvatarUrl((data?.avatar_url as string | null) ?? null)
+    }
+    loadAvatar()
+
+    const channel = supabase
+      .channel(`navbar-profile:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+        (payload) => {
+          const next = (payload.new as { avatar_url?: string | null } | null)?.avatar_url
+          setAvatarUrl(next ?? null)
+        },
+      )
+      .subscribe()
+
+    return () => {
+      cancelled = true
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setUser(null)
@@ -73,6 +114,7 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
   const navLinks = [
     { href: '/products', label: 'Products' },
     { href: '/foryou', label: 'For You' },
+    ...(user ? [{ href: '/friends', label: 'Friends' }] : []),
   ]
 
   return (
@@ -159,15 +201,22 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
           )}
 
           {user && (
+            <div className="hidden md:block">
+              <NotificationBell userId={user.id} />
+            </div>
+          )}
+
+          {user && (
             <div className="relative hidden md:block">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center overflow-hidden ring-2 ring-primary/10"
               >
-                {user.user_metadata?.avatar_url ? (
+                {avatarUrl || user.user_metadata?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={user.user_metadata.avatar_url}
+                    src={avatarUrl ?? user.user_metadata?.avatar_url}
                     alt="Avatar"
                     className="w-full h-full object-cover"
                   />
@@ -194,12 +243,21 @@ export function Navbar({ cartCount = 0 }: NavbarProps) {
                     </div>
 
                     <Link
-                      href="/profile"
+                      href={`/u/${user.id}`}
                       className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-secondary transition-colors"
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       <User className="w-4 h-4" />
-                      Profile
+                      Public profile
+                    </Link>
+
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-secondary transition-colors border-t"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Settings
                     </Link>
 
                     <button
