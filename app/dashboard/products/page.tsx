@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { formatPrice } from '@/lib/format'
 import {
   PlusCircle,
   Search,
@@ -164,7 +165,7 @@ export default function ProductsPage() {
                   </div>
                 </div>
                 <div className="hidden sm:block text-sm font-medium">
-                  ${Number(r.price ?? 0).toFixed(2)}
+                  {formatPrice(r.price ?? 0)}
                 </div>
                 <div className="hidden sm:block text-sm text-muted-foreground">
                   {r.stock} in stock

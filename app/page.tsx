@@ -8,7 +8,7 @@ import { Navbar } from '@/components/navbar'
 import { Footer } from '@/components/footer'
 import { ProductCard } from '@/components/product-card'
 import { supabase } from '@/lib/supabaseClient'
-import { fetchSellers } from '@/lib/sellers'
+import { fetchSellers, fetchVacationingSellerIds } from '@/lib/sellers'
 import { Button } from '@/components/ui/button'
 import {
   Loader2,
@@ -46,12 +46,19 @@ export default function Home() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const { data: productsData } = await supabase
+      const vacationIds = await fetchVacationingSellerIds()
+      let q = supabase
         .from('products')
         .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(60)
+      if (vacationIds.size > 0) {
+        q = q.or(
+          `seller_id.is.null,seller_id.not.in.(${Array.from(vacationIds).join(',')})`,
+        )
+      }
+      const { data: productsData } = await q
 
       const { data: reviewsData } = await supabase
         .from('reviews')

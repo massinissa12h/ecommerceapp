@@ -6,8 +6,14 @@ import { supabase } from '@/lib/supabaseClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { ImageUploader } from './image-uploader'
-import { Loader2, Save, ArrowLeft } from 'lucide-react'
+import { GalleryUploader, type GalleryImage } from './gallery-uploader'
+import {
+  Loader2,
+  Save,
+  ArrowLeft,
+  Tag as TagIcon,
+  X,
+} from 'lucide-react'
 import Link from 'next/link'
 
 const CATEGORIES = [
@@ -41,34 +47,79 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
     price: '',
     compare_at_price: '',
     stock: '10',
-    image_url: '' as string | null,
     status: 'active' as 'active' | 'draft' | 'archived',
+    is_featured: false,
   })
+
+  const [images, setImages] = useState<GalleryImage[]>([])
+  const [originalImageIds, setOriginalImageIds] = useState<Set<string>>(new Set())
+  const [tags, setTags] = useState<string[]>([])
+  const [originalTags, setOriginalTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
 
   useEffect(() => {
     if (!productId) return
     let cancelled = false
     ;(async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', productId)
-        .single()
+      const [{ data: p, error }, { data: imgs }, { data: tagRows }] =
+        await Promise.all([
+          supabase.from('products').select('*').eq('id', productId).single(),
+          supabase
+            .from('product_images')
+            .select('*')
+            .eq('product_id', productId)
+            .order('position', { ascending: true }),
+          supabase
+            .from('product_tags')
+            .select('tag')
+            .eq('product_id', productId),
+        ])
+
       if (cancelled) return
-      if (error || !data) {
+      if (error || !p) {
         setError(error?.message ?? 'Product not found')
       } else {
         setForm({
-          name: data.name ?? '',
-          description: data.description ?? '',
-          category: data.category ?? CATEGORIES[0],
-          price: String(data.price ?? ''),
+          name: p.name ?? '',
+          description: p.description ?? '',
+          category: p.category ?? CATEGORIES[0],
+          price: String(p.price ?? ''),
           compare_at_price:
-            data.compare_at_price != null ? String(data.compare_at_price) : '',
-          stock: String(data.stock ?? 0),
-          image_url: data.image_url ?? null,
-          status: data.status ?? 'active',
+            p.compare_at_price != null ? String(p.compare_at_price) : '',
+          stock: String(p.stock ?? 0),
+          status: p.status ?? 'active',
+          is_featured: !!p.is_featured,
         })
+
+        // Seed the gallery: existing product_images rows, with the legacy
+        // image_url prepended as the primary if there are no images yet.
+        const existing: GalleryImage[] = (imgs ?? []).map((row: any) => ({
+          id: row.id,
+          url: row.url,
+          position: row.position,
+          alt: row.alt,
+        }))
+        if (existing.length === 0 && p.image_url) {
+          existing.push({ url: p.image_url, position: 0 })
+        } else if (
+          existing.length > 0 &&
+          p.image_url &&
+          !existing.some((g) => g.url === p.image_url)
+        ) {
+          // primary image_url exists but isn't in the gallery — add it at position 0
+          existing.unshift({ url: p.image_url, position: 0 })
+          existing.forEach((g, i) => (g.position = i))
+        }
+        setImages(existing)
+        setOriginalImageIds(
+          new Set(existing.map((i) => i.id).filter(Boolean) as string[]),
+        )
+
+        const tagList = (tagRows ?? [])
+          .map((r: any) => r.tag as string)
+          .filter(Boolean)
+        setTags(tagList)
+        setOriginalTags(tagList)
       }
       setLoading(false)
     })()
@@ -76,6 +127,19 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
       cancelled = true
     }
   }, [productId])
+
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase().replace(/[^a-z0-9\- ]/g, '')
+    if (!t) return
+    if (tags.includes(t) || tags.length >= 8) {
+      setTagInput('')
+      return
+    }
+    setTags([...tags, t])
+    setTagInput('')
+  }
+
+  const removeTag = (t: string) => setTags(tags.filter((x) => x !== t))
 
   const save = async () => {
     if (!form.name.trim() || !form.price) {
@@ -85,25 +149,27 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
     setSaving(true)
     setError(null)
 
+    const primaryUrl = images[0]?.url ?? null
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
       category: form.category,
       price: Number(form.price),
-      compare_at_price: form.compare_at_price
-        ? Number(form.compare_at_price)
-        : null,
+      compare_at_price: form.compare_at_price ? Number(form.compare_at_price) : null,
       stock: Number(form.stock || 0),
-      image_url: form.image_url,
+      // products.image_url is the cached primary used by cards & legacy code
+      image_url: primaryUrl,
       status: form.status,
+      is_featured: form.is_featured,
       seller_id: userId,
     }
 
-    if (productId) {
+    let pid = productId
+    if (pid) {
       const { error } = await supabase
         .from('products')
         .update(payload)
-        .eq('id', productId)
+        .eq('id', pid)
         .eq('seller_id', userId)
       if (error) {
         setError(error.message)
@@ -111,13 +177,68 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
         return
       }
     } else {
-      const { error } = await supabase.from('products').insert(payload)
-      if (error) {
-        setError(error.message)
+      const { data, error } = await supabase
+        .from('products')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (error || !data) {
+        setError(error?.message ?? 'Could not create product')
         setSaving(false)
         return
       }
+      pid = data.id
     }
+
+    // Sync gallery: delete removed, insert new, update positions.
+    try {
+      // Figure out which DB rows to delete
+      const keptIds = new Set(images.map((i) => i.id).filter(Boolean) as string[])
+      const toDelete = [...originalImageIds].filter((id) => !keptIds.has(id))
+      if (toDelete.length) {
+        await supabase.from('product_images').delete().in('id', toDelete)
+      }
+      // Update positions for existing
+      for (const img of images) {
+        if (img.id) {
+          await supabase
+            .from('product_images')
+            .update({ position: img.position, alt: img.alt ?? null })
+            .eq('id', img.id)
+        }
+      }
+      // Insert new
+      const newRows = images
+        .filter((i) => !i.id)
+        .map((i) => ({
+          product_id: pid,
+          url: i.url,
+          position: i.position,
+          alt: i.alt ?? null,
+        }))
+      if (newRows.length) {
+        await supabase.from('product_images').insert(newRows)
+      }
+
+      // Sync tags: replace the lot (small list, simpler than diff)
+      const tagSetChanged =
+        tags.length !== originalTags.length ||
+        tags.some((t, i) => t !== originalTags[i])
+      if (tagSetChanged) {
+        await supabase.from('product_tags').delete().eq('product_id', pid)
+        if (tags.length) {
+          await supabase
+            .from('product_tags')
+            .insert(tags.map((tag) => ({ product_id: pid, tag })))
+        }
+      }
+    } catch (e: any) {
+      // Non-fatal: the product itself was saved. Surface but don't block.
+      setError(`Saved, but gallery/tags sync had an issue: ${e.message ?? e}`)
+      setSaving(false)
+      return
+    }
+
     router.push('/dashboard/products')
   }
 
@@ -146,7 +267,7 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {productId
-              ? 'Update product details, stock, and availability.'
+              ? 'Update product details, stock, gallery, and availability.'
               : 'Add a product to your shop. You can save it as a draft and publish later.'}
           </p>
         </div>
@@ -178,9 +299,7 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
                 <Field label="Category">
                   <select
                     value={form.category}
-                    onChange={(e) =>
-                      setForm({ ...form, category: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
                     {CATEGORIES.map((c) => (
@@ -194,10 +313,7 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
                   <select
                     value={form.status}
                     onChange={(e) =>
-                      setForm({
-                        ...form,
-                        status: e.target.value as any,
-                      })
+                      setForm({ ...form, status: e.target.value as any })
                     }
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
@@ -223,7 +339,7 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
                   step="0.01"
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  placeholder="0.00"
+                  placeholder="0"
                 />
               </Field>
               <Field label="Compare-at price">
@@ -248,17 +364,84 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
                 />
               </Field>
             </div>
+            <label className="mt-4 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.is_featured}
+                onChange={(e) =>
+                  setForm({ ...form, is_featured: e.target.checked })
+                }
+                className="rounded border-border"
+              />
+              <span>Pin as featured in my shop</span>
+            </label>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Tags"
+              subtitle="Help buyers find this — handmade, vintage, gift, etc."
+            />
+            <div className="flex flex-wrap gap-2 mb-3">
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded-full bg-secondary text-foreground text-xs px-2.5 py-1"
+                >
+                  <TagIcon className="w-3 h-3 text-muted-foreground" />
+                  {t}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(t)}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {tags.length === 0 && (
+                <p className="text-xs text-muted-foreground">No tags yet.</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
+                placeholder="Type a tag and press Enter"
+                disabled={tags.length >= 8}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addTag}
+                disabled={!tagInput.trim() || tags.length >= 8}
+              >
+                Add
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              {tags.length}/8 tags. Lowercase, no special characters.
+            </p>
           </Card>
         </div>
 
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Image" subtitle="Best at 1:1 aspect, well-lit" />
-            <ImageUploader
-              value={form.image_url}
-              onChange={(url) => setForm({ ...form, image_url: url })}
+            <CardHeader
+              title="Gallery"
+              subtitle="Up to 8 images. The first one is your product card thumbnail."
+            />
+            <GalleryUploader
+              value={images}
+              onChange={setImages}
               userId={userId}
-              folder="products"
+              max={8}
             />
           </Card>
 
@@ -268,12 +451,7 @@ export function ProductForm({ userId, productId }: ProductFormProps) {
                 {error}
               </div>
             )}
-            <Button
-              onClick={save}
-              disabled={saving}
-              className="w-full"
-              size="lg"
-            >
+            <Button onClick={save} disabled={saving} className="w-full" size="lg">
               {saving ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

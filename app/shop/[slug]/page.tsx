@@ -22,6 +22,10 @@ import {
   MessageCircle,
   Calendar,
   Share2,
+  Megaphone,
+  Plane,
+  Truck,
+  RotateCcw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useCart } from '@/app/hooks/useCart'
@@ -41,6 +45,11 @@ type Seller = {
   shop_location: string | null
   socials: Record<string, string> | null
   created_at: string | null
+  shop_announcement: string | null
+  vacation_mode: boolean
+  vacation_message: string | null
+  shipping_policy: string | null
+  return_policy: string | null
 }
 
 export default function PublicShopPage() {
@@ -79,6 +88,7 @@ export default function PublicShopPage() {
         username: u?.username ?? null,
         created_at: u?.created_at ?? null,
         socials: (profile.socials as Record<string, string>) ?? null,
+        vacation_mode: !!profile.vacation_mode,
       }
       if (cancelled) return
       setSeller(sellerData)
@@ -289,6 +299,34 @@ export default function PublicShopPage() {
           </div>
         </section>
 
+        {/* Announcement + vacation banners */}
+        {(seller.shop_announcement || seller.vacation_mode) && (
+          <section className="max-w-7xl mx-auto px-4 pt-6 space-y-3">
+            {seller.vacation_mode && (
+              <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning-foreground p-4 flex items-start gap-3">
+                <Plane className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-foreground">
+                    This shop is on vacation
+                  </p>
+                  <p className="text-sm text-foreground/80 mt-0.5">
+                    {seller.vacation_message ||
+                      'The seller is currently away. New orders are paused — please check back soon.'}
+                  </p>
+                </div>
+              </div>
+            )}
+            {seller.shop_announcement && (
+              <div className="rounded-xl border border-brand/30 bg-brand-soft text-foreground p-4 flex items-start gap-3">
+                <Megaphone className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+                <p className="text-sm leading-relaxed whitespace-pre-line">
+                  {seller.shop_announcement}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="max-w-7xl mx-auto px-4 py-10 grid lg:grid-cols-[300px_1fr] gap-8">
           {/* SIDEBAR — About / Contacts / Socials */}
           <aside className="space-y-5 lg:sticky lg:top-20 lg:self-start">
@@ -372,6 +410,29 @@ export default function PublicShopPage() {
                     </a>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {seller.shipping_policy && (
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 inline-flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5" />
+                  Shipping
+                </h3>
+                <p className="text-sm leading-relaxed whitespace-pre-line">
+                  {seller.shipping_policy}
+                </p>
+              </div>
+            )}
+            {seller.return_policy && (
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 inline-flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Returns
+                </h3>
+                <p className="text-sm leading-relaxed whitespace-pre-line">
+                  {seller.return_policy}
+                </p>
               </div>
             )}
           </aside>

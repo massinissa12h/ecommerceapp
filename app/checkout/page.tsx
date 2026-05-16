@@ -162,13 +162,24 @@ export default function CheckoutPage() {
     setError(null)
 
     try {
-      // Save profile address (best-effort)
+      // Save profile address (best-effort) so it pre-fills next time
       await supabase.from('profiles').upsert({ id: uid, ...address }, { onConflict: 'id' })
 
-      // Create order
+      // Create the order with a frozen snapshot of address + cost breakdown.
+      // Status starts as "pending" — for COD that means the seller still has
+      // to confirm and ship before the courier collects payment.
       const { data: order, error: orderErr } = await supabase
         .from('orders')
-        .insert({ user_id: uid, total_price: total, status: 'paid' })
+        .insert({
+          user_id: uid,
+          total_price: total,
+          subtotal,
+          shipping_fee: shipping,
+          tax,
+          status: 'pending',
+          payment_method: 'cod',
+          shipping_address: address,
+        })
         .select()
         .single()
       if (orderErr || !order) throw orderErr
@@ -230,8 +241,8 @@ export default function CheckoutPage() {
             Reference #{success.slice(0, 8)}
           </p>
           <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
-            <Link href="/orders">
-              <Button>View my orders</Button>
+            <Link href={`/orders/${success}`}>
+              <Button>View order details</Button>
             </Link>
             <Link href="/products">
               <Button variant="outline">Keep shopping</Button>

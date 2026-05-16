@@ -27,6 +27,8 @@ import {
 } from 'lucide-react'
 import { ShareToFriendsDialog } from '@/components/share-to-friends-dialog'
 import { useCart } from '@/app/hooks/useCart'
+import { formatPrice } from '@/lib/format'
+import { ProductGallery, type GalleryView } from '@/components/product-gallery'
 
 interface Product {
   id: string
@@ -127,6 +129,7 @@ export default function ProductDetailsPage() {
 
   const [product, setProduct] = useState<Product | null>(null)
   const [seller, setSeller] = useState<SellerInfo | null>(null)
+  const [gallery, setGallery] = useState<GalleryView[]>([])
   const [similarProducts, setSimilarProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -199,12 +202,33 @@ export default function ProductDetailsPage() {
       if (productError) throw productError
       if (!productData) throw new Error('Product not found')
 
-      const { data: tagsData } = await supabase
-        .from('product_tags')
-        .select('tag')
-        .eq('product_id', productId)
+      const [{ data: tagsData }, { data: galleryRows }] = await Promise.all([
+        supabase.from('product_tags').select('tag').eq('product_id', productId),
+        supabase
+          .from('product_images')
+          .select('url, alt, position')
+          .eq('product_id', productId)
+          .order('position', { ascending: true }),
+      ])
 
       const tags = (tagsData ?? []).map((t: { tag: string }) => t.tag)
+
+      // Build the gallery: start from product_images rows, then fall back to
+      // the legacy image_url if there are no rows (so old products still work).
+      const galleryList: GalleryView[] = ((galleryRows ?? []) as any[]).map((r) => ({
+        url: r.url,
+        alt: r.alt ?? null,
+      }))
+      if (galleryList.length === 0 && productData.image_url) {
+        galleryList.push({ url: productData.image_url, alt: productData.name })
+      } else if (
+        productData.image_url &&
+        !galleryList.some((g) => g.url === productData.image_url)
+      ) {
+        // Make sure the primary cached on products.image_url leads the gallery
+        galleryList.unshift({ url: productData.image_url, alt: productData.name })
+      }
+      setGallery(galleryList)
 
       setProduct({
         ...productData,
@@ -541,27 +565,10 @@ export default function ProductDetailsPage() {
             variants={staggerContainer}
             className="grid grid-cols-1 md:grid-cols-2 gap-12"
           >
-            <motion.div variants={fadeUp} className="flex items-start">
-              <motion.div
-                whileHover={{ scale: 1.015 }}
-                transition={{ duration: 0.25 }}
-                className="relative w-full aspect-square bg-secondary rounded-3xl overflow-hidden border border-border shadow-sm"
-              >
-                {product.image_url ? (
-                  <Image
-                    src={product.image_url}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                    priority
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-                    No image available
-                  </div>
-                )}
-              </motion.div>
+            <motion.div variants={fadeUp} className="flex items-start min-w-0">
+              <div className="w-full">
+                <ProductGallery images={gallery} name={product.name} />
+              </div>
             </motion.div>
 
             <motion.div variants={fadeUp} className="flex flex-col">
@@ -590,12 +597,12 @@ export default function ProductDetailsPage() {
               </div>
 
               <p className="text-4xl font-bold text-foreground mb-2">
-                ${(product.price ?? 0).toFixed(2)}
+                {formatPrice(product.price ?? 0)}
               </p>
               {product.compare_at_price &&
                 product.compare_at_price > (product.price ?? 0) && (
                   <p className="text-sm text-muted-foreground line-through mb-4">
-                    ${Number(product.compare_at_price).toFixed(2)}
+                    {formatPrice(product.compare_at_price)}
                   </p>
                 )}
 
@@ -663,12 +670,15 @@ export default function ProductDetailsPage() {
                   <p className="text-sm font-semibold text-foreground mb-3">
                     Tags
                   </p>
-
                   <div className="flex flex-wrap gap-2">
                     {product.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="capitalize">
-                        {tag}
-                      </Badge>
+                      <Link
+                        key={tag}
+                        href={`/products?tag=${encodeURIComponent(tag)}`}
+                        className="inline-flex items-center rounded-full bg-secondary text-foreground text-xs font-medium px-2.5 py-1 capitalize hover:bg-foreground hover:text-background transition-colors"
+                      >
+                        #{tag}
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -790,7 +800,7 @@ export default function ProductDetailsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  [Truck, 'Free Shipping', 'On orders over $50'],
+                  [Truck, 'Free Shipping', 'On orders over 5,000 DA'],
                   [RotateCcw, '30-Day Returns', 'Easy returns'],
                   [ShieldCheck, 'Warranty', '1 year'],
                 ].map(([Icon, label, value]: any) => (

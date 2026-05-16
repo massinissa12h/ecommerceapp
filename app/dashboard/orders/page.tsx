@@ -11,6 +11,7 @@ import {
   XCircle,
   PackageCheck,
 } from 'lucide-react'
+import { formatPrice } from '@/lib/format'
 
 type Item = {
   id: string
@@ -196,9 +197,9 @@ export default function OrdersPage() {
                   </Link>
                   <p className="text-xs text-muted-foreground mt-1">
                     Order #{String(r.order_id).slice(0, 8)} · {r.quantity} ×
-                    ${Number(r.price ?? 0).toFixed(2)} ={' '}
+                    {formatPrice(r.price ?? 0)} ={' '}
                     <span className="text-foreground font-medium">
-                      ${(Number(r.price ?? 0) * Number(r.quantity ?? 0)).toFixed(2)}
+                      {formatPrice(Number(r.price ?? 0) * Number(r.quantity ?? 0))}
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">

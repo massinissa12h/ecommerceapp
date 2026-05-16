@@ -8,7 +8,7 @@ import { Footer } from '@/components/footer'
 import { ProductCard } from '@/components/product-card'
 import { ProductFilters, FilterState } from '@/components/product-filters'
 import { supabase } from '@/lib/supabaseClient'
-import { fetchSellers } from '@/lib/sellers'
+import { fetchSellers, fetchVacationingSellerIds } from '@/lib/sellers'
 import { Button } from '@/components/ui/button'
 import {
   Loader2,
@@ -31,6 +31,7 @@ export default function ProductsPage() {
   const sellerId = sp.get('seller')
   const queryParam = sp.get('q') ?? ''
   const categoryParam = sp.get('category') ?? ''
+  const tagParam = sp.get('tag') ?? ''
 
   const { cartCount, addToCart } = useCart()
   const { wishlistIds, toggleWishlist } = useWishlist()
@@ -103,6 +104,36 @@ export default function ProductsPage() {
         }
         if (sellerId) query = query.eq('seller_id', sellerId)
 
+        // Exclude products from sellers on vacation (except when explicitly
+        // viewing that seller's shop via /products?seller=...).
+        if (!sellerId) {
+          const vacationIds = Array.from(await fetchVacationingSellerIds())
+          if (vacationIds.length > 0) {
+            query = query.or(
+              `seller_id.is.null,seller_id.not.in.(${vacationIds.join(',')})`,
+            )
+          }
+        }
+
+        // Tag filter: first resolve which product_ids match the tag, then
+        // narrow the products query to that set. Skip silently if the tag
+        // matches nothing.
+        if (tagParam) {
+          const { data: tagRows } = await supabase
+            .from('product_tags')
+            .select('product_id')
+            .eq('tag', tagParam.toLowerCase())
+          const ids = (tagRows ?? []).map((r: any) => r.product_id)
+          if (ids.length === 0) {
+            setProducts([])
+            setTotalCount(0)
+            setLoading(false)
+            setPageLoading(false)
+            return
+          }
+          query = query.in('id', ids)
+        }
+
         if (searchTerm.trim()) {
           const q = searchTerm.trim().replace(/[%_]/g, '')
           query = query.or(
@@ -156,7 +187,7 @@ export default function ProductsPage() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [page, filters, searchTerm, sellerId, sort],
+    [page, filters, searchTerm, sellerId, sort, tagParam],
   )
 
   useEffect(() => {
@@ -177,7 +208,8 @@ export default function ProductsPage() {
     filters.categories.length > 0 ||
     filters.minRating > 0 ||
     filters.priceRange[0] !== 0 ||
-    filters.priceRange[1] !== 5000
+    filters.priceRange[1] !== 5000 ||
+    !!tagParam
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -283,6 +315,11 @@ export default function ProductsPage() {
 
                 {hasActive && (
                   <div className="mb-4 flex flex-wrap items-center gap-2">
+                    {tagParam && (
+                      <Link href="/products">
+                        <Chip onClear={() => {}}>#{tagParam}</Chip>
+                      </Link>
+                    )}
                     {searchTerm && (
                       <Chip onClear={() => setSearchTerm('')}>“{searchTerm}”</Chip>
                     )}

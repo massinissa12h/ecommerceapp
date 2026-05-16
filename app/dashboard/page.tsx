@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import {
-  DollarSign,
+  Coins,
   Package,
   ShoppingBag,
   Star,
@@ -14,6 +14,7 @@ import {
   TrendingUp,
   AlertCircle,
 } from 'lucide-react'
+import { formatPrice, formatPriceCompact } from '@/lib/format'
 import {
   LineChart,
   Line,
@@ -203,9 +204,9 @@ export default function DashboardOverview() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={DollarSign}
+          icon={Coins}
           label="Total revenue"
-          value={`$${stats.totalRevenue.toFixed(2)}`}
+          value={formatPriceCompact(stats.totalRevenue)}
           hint="All time"
         />
         <StatCard
@@ -257,7 +258,7 @@ export default function DashboardOverview() {
                   fontSize: 12,
                 }}
                 formatter={(v: any, key) =>
-                  key === 'revenue' ? `$${Number(v).toFixed(2)}` : v
+                  key === 'revenue' ? formatPrice(Number(v)) : v
                 }
               />
               <Line
@@ -309,7 +310,7 @@ export default function DashboardOverview() {
                     </p>
                   </div>
                   <p className="font-medium">
-                    ${(Number(r.price) * Number(r.quantity)).toFixed(2)}
+                    {formatPrice(Number(r.price) * Number(r.quantity))}
                   </p>
                 </li>
               ))}
@@ -351,7 +352,7 @@ export default function DashboardOverview() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {p.qty} sold · ${p.revenue.toFixed(2)}
+                      {p.qty} sold · {formatPrice(p.revenue)}
                     </p>
                   </div>
                 </li>

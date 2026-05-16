@@ -22,6 +22,10 @@ import {
   Music,
   Github,
   Linkedin,
+  Megaphone,
+  Plane,
+  Package,
+  RotateCcw,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -65,6 +69,12 @@ export default function ShopSettings() {
     contact_phone: '',
     shop_location: '',
     socials: {} as Record<string, string>,
+    shop_announcement: '',
+    vacation_mode: false,
+    vacation_message: '',
+    shipping_policy: '',
+    return_policy: '',
+    low_stock_threshold: 5,
   })
 
   useEffect(() => {
@@ -95,6 +105,12 @@ export default function ShopSettings() {
         contact_phone: profile?.contact_phone ?? '',
         shop_location: profile?.shop_location ?? '',
         socials: (profile?.socials as Record<string, string>) ?? {},
+        shop_announcement: profile?.shop_announcement ?? '',
+        vacation_mode: !!profile?.vacation_mode,
+        vacation_message: profile?.vacation_message ?? '',
+        shipping_policy: profile?.shipping_policy ?? '',
+        return_policy: profile?.return_policy ?? '',
+        low_stock_threshold: profile?.low_stock_threshold ?? 5,
       })
       setLoading(false)
     })()
@@ -139,6 +155,12 @@ export default function ShopSettings() {
       contact_phone: form.contact_phone.trim() || null,
       shop_location: form.shop_location.trim() || null,
       socials: cleanSocials,
+      shop_announcement: form.shop_announcement.trim() || null,
+      vacation_mode: form.vacation_mode,
+      vacation_message: form.vacation_message.trim() || null,
+      shipping_policy: form.shipping_policy.trim() || null,
+      return_policy: form.return_policy.trim() || null,
+      low_stock_threshold: Math.max(0, Number(form.low_stock_threshold) || 0),
     }
     const { error } = await supabase
       .from('profiles')
@@ -317,6 +339,109 @@ export default function ShopSettings() {
             </Field>
           ))}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Megaphone className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-semibold">Shop announcement</h2>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Pinned to the top of your shop page. Great for sales, restocks, or
+          shipping notices.
+        </p>
+        <Textarea
+          rows={3}
+          maxLength={280}
+          value={form.shop_announcement}
+          onChange={(e) =>
+            setForm({ ...form, shop_announcement: e.target.value })
+          }
+          placeholder='e.g. "Free shipping on orders over 5,000 DA this weekend!"'
+        />
+        <p className="text-[11px] text-muted-foreground">
+          {form.shop_announcement.length}/280
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Plane className="w-4 h-4 text-muted-foreground" />
+            <div>
+              <h2 className="font-semibold">Vacation mode</h2>
+              <p className="text-xs text-muted-foreground">
+                Hides your products from the marketplace until you toggle it
+                back off. Buyers can still see your shop page with a notice.
+              </p>
+            </div>
+          </div>
+          <label className="inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.vacation_mode}
+              onChange={(e) =>
+                setForm({ ...form, vacation_mode: e.target.checked })
+              }
+              className="sr-only peer"
+            />
+            <div className="relative w-11 h-6 bg-secondary peer-checked:bg-foreground rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-card after:rounded-full after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5" />
+          </label>
+        </div>
+        {form.vacation_mode && (
+          <Field label="Message shown on your shop">
+            <Input
+              value={form.vacation_message}
+              onChange={(e) =>
+                setForm({ ...form, vacation_message: e.target.value })
+              }
+              placeholder="Back September 1 — thanks for your patience!"
+            />
+          </Field>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Package className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-semibold">Policies</h2>
+        </div>
+        <Field label="Shipping policy">
+          <Textarea
+            rows={3}
+            value={form.shipping_policy}
+            onChange={(e) =>
+              setForm({ ...form, shipping_policy: e.target.value })
+            }
+            placeholder="e.g. We ship within 2 business days via Yalidine."
+          />
+        </Field>
+        <Field label="Return policy">
+          <Textarea
+            rows={3}
+            value={form.return_policy}
+            onChange={(e) =>
+              setForm({ ...form, return_policy: e.target.value })
+            }
+            placeholder="e.g. Returns accepted within 7 days for unused items."
+          />
+        </Field>
+        <Field
+          label="Low-stock alert threshold"
+          hint="We'll flag items in your dashboard when stock drops below this"
+        >
+          <Input
+            type="number"
+            min={0}
+            value={form.low_stock_threshold}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                low_stock_threshold: Number(e.target.value),
+              })
+            }
+          />
+        </Field>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5">

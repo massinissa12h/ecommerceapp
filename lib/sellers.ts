@@ -1,6 +1,18 @@
 import { supabase } from './supabaseClient'
 import type { SellerSummary } from '@/types/product'
 
+/**
+ * Returns the set of seller ids that are currently in "vacation mode". Used
+ * by marketplace listings (home, /products) to hide their items.
+ */
+export async function fetchVacationingSellerIds(): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('vacation_mode', true)
+  return new Set((data ?? []).map((r: any) => r.id))
+}
+
 const PLATFORM_SELLER: SellerSummary = {
   id: 'souqly',
   username: 'souqly',
