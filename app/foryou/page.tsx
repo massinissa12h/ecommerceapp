@@ -269,7 +269,7 @@ export default function ForYouPage() {
 
         <RecSection
           title="Trending right now"
-          subtitle="What everyone's looking at on ModernShop"
+          subtitle="What everyone's looking at on Souqly"
           icon={TrendingUp}
           loading={trendingLoading}
           error={trendingError}

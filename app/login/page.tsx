@@ -102,7 +102,7 @@ export default function LoginPage() {
                 <motion.div
                   key={text}
                   whileHover={{ x: 6 }}
-                  className="flex items-center gap-3 rounded-2xl bg-white/70 backdrop-blur border border-border p-4 shadow-sm"
+                  className="flex items-center gap-3 rounded-2xl bg-card/80 backdrop-blur border border-border p-4 shadow-sm"
                 >
                   <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                     <Icon className="w-5 h-5" />
@@ -117,7 +117,7 @@ export default function LoginPage() {
             <motion.div
               whileHover={{ y: -4 }}
               transition={{ duration: 0.25 }}
-              className="bg-white/90 backdrop-blur-xl rounded-3xl border border-border p-8 shadow-xl"
+              className="bg-card/95 backdrop-blur-xl rounded-3xl border border-border p-8 shadow-xl"
             >
               <div className="mb-8">
                 <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mb-5 shadow-sm">
@@ -247,7 +247,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-muted-foreground">
+                  <span className="bg-card px-2 text-muted-foreground">
                     Or continue with
                   </span>
                 </div>

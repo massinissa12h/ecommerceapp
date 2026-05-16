@@ -99,7 +99,7 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
   return (
     <aside className="w-full lg:w-64 flex-shrink-0 h-fit lg:sticky lg:top-24 space-y-1">
 
-      <div className="bg-white rounded-lg border border-border p-5">
+      <div className="bg-card rounded-lg border border-border p-5">
         <div className="flex items-center gap-2 mb-4">
           <LayoutList className="w-4 h-4 text-muted-foreground" />
           <h3 className="font-semibold text-sm text-foreground">Categories</h3>
@@ -141,7 +141,7 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-border p-5">
+      <div className="bg-card rounded-lg border border-border p-5">
         <div className="flex items-center gap-2 mb-4">
           <DollarSign className="w-4 h-4 text-muted-foreground" />
           <h3 className="font-semibold text-sm text-foreground">Price Range</h3>
@@ -167,7 +167,7 @@ export function ProductFilters({ onFilterChange, onSearchChange }: ProductFilter
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-border p-5">
+      <div className="bg-card rounded-lg border border-border p-5">
         <div className="flex items-center gap-2 mb-4">
           <Star className="w-4 h-4 text-muted-foreground" />
           <h3 className="font-semibold text-sm text-foreground">Minimum Rating</h3>

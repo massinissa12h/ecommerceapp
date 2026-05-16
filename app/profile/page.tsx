@@ -534,7 +534,7 @@ export default function ProfilePage() {
           >
             <motion.div
               variants={fadeUp}
-              className="bg-white border border-border rounded-3xl p-6 md:p-8 shadow-sm space-y-6"
+              className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm space-y-6"
             >
               <SectionTitle
                 icon={User}
@@ -613,7 +613,7 @@ export default function ProfilePage() {
 
             <motion.div
               variants={fadeUp}
-              className="bg-white border border-border rounded-3xl p-6 md:p-8 shadow-sm space-y-6"
+              className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm space-y-6"
             >
               <SectionTitle
                 icon={MapPin}
@@ -686,7 +686,7 @@ export default function ProfilePage() {
           >
             <motion.div
               variants={fadeUp}
-              className="bg-white border border-border rounded-3xl p-6 md:p-8 shadow-sm"
+              className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm"
             >
               <SectionTitle
                 icon={ShieldCheck}
@@ -785,7 +785,7 @@ export default function ProfilePage() {
 
             <motion.div
               variants={fadeUp}
-              className="bg-white border border-border rounded-3xl p-6 md:p-8 shadow-sm"
+              className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm"
             >
               <SectionTitle
                 icon={Star}
@@ -985,7 +985,7 @@ function ProductSection({
   return (
     <motion.div
       variants={fadeUp}
-      className="bg-white border border-border rounded-3xl p-6 md:p-8 shadow-sm"
+      className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm"
     >
       <SectionTitle icon={icon} title={title} count={count} />
 

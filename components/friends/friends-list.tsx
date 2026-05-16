@@ -57,7 +57,7 @@ export function FriendsList({
             className={`group w-full text-left flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
               active
                 ? 'bg-primary/5 border-primary/40'
-                : 'bg-white border-border/60 hover:border-primary/20'
+                : 'bg-card border-border/60 hover:border-primary/20'
             }`}
           >
             <div className="flex items-center gap-3 min-w-0">

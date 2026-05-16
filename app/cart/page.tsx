@@ -21,6 +21,7 @@ import {
   PackageCheck,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
+import { formatPrice } from '@/lib/format'
 
 interface CartItem {
   id: string
@@ -35,8 +36,10 @@ interface CartItem {
   }
 }
 
-const SHIPPING_THRESHOLD = 100
-const SHIPPING_COST = 9.99
+// All amounts in DZD (Algerian dinars). Roughly tuned for the Algerian market:
+// free shipping on orders >= 5,000 DA, otherwise a flat 500 DA delivery fee.
+const SHIPPING_THRESHOLD = 5000
+const SHIPPING_COST = 500
 const TAX_RATE = 0.08
 
 const fadeUp = {
@@ -287,7 +290,7 @@ export default function CartPage() {
                   {cartItems.length === 0 ? (
                     <motion.div
                       variants={fadeUp}
-                      className="bg-white rounded-3xl border border-dashed border-border p-12 text-center shadow-sm"
+                      className="bg-card rounded-3xl border border-dashed border-border p-12 text-center shadow-sm"
                     >
                       <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
                         <ShoppingCart className="w-10 h-10" />
@@ -319,7 +322,7 @@ export default function CartPage() {
                             animate="visible"
                             exit={{ opacity: 0, x: -40, scale: 0.96 }}
                             whileHover={{ y: -3 }}
-                            className="group bg-white rounded-3xl border border-border p-4 md:p-5 flex gap-4 items-start shadow-sm hover:shadow-md transition-shadow"
+                            className="group bg-card rounded-3xl border border-border p-4 md:p-5 flex gap-4 items-start shadow-sm hover:shadow-md transition-shadow"
                           >
                             <Link
                               href={`/product/${item.product.id}`}
@@ -359,12 +362,12 @@ export default function CartPage() {
 
                               <div className="mt-4">
                                 <p className="text-primary font-bold text-xl">
-                                  ${((item.product.price ?? 0) * item.quantity).toFixed(2)}
+                                  {formatPrice((item.product.price ?? 0) * item.quantity)}
                                 </p>
 
                                 {item.quantity > 1 && (
                                   <p className="text-xs text-muted-foreground">
-                                    ${(item.product.price ?? 0).toFixed(2)} each
+                                    {formatPrice(item.product.price ?? 0)} each
                                   </p>
                                 )}
                               </div>
@@ -417,7 +420,7 @@ export default function CartPage() {
                 </div>
 
                 <motion.div variants={fadeUp} className="lg:col-span-1">
-                  <div className="bg-white/90 backdrop-blur rounded-3xl border border-border p-6 h-fit sticky top-6 shadow-xl">
+                  <div className="bg-card/95 backdrop-blur rounded-3xl border border-border p-6 h-fit sticky top-6 shadow-xl">
                     <div className="flex items-center justify-between mb-6">
                       <h2 className="text-xl font-bold text-foreground">
                         Order Summary
@@ -437,7 +440,7 @@ export default function CartPage() {
                           <span className="text-muted-foreground">
                             {subtotal >= SHIPPING_THRESHOLD
                               ? 'Unlocked'
-                              : `$${(SHIPPING_THRESHOLD - subtotal).toFixed(2)} left`}
+                              : `${formatPrice(SHIPPING_THRESHOLD - subtotal)} left`}
                           </span>
                         </div>
 
@@ -457,7 +460,7 @@ export default function CartPage() {
                         <span className="text-muted-foreground">
                           Subtotal ({totalItems} item{totalItems !== 1 ? 's' : ''})
                         </span>
-                        <span className="font-medium">${subtotal.toFixed(2)}</span>
+                        <span className="font-medium">{formatPrice(subtotal)}</span>
                       </div>
 
                       <div className="flex justify-between text-sm">
@@ -466,20 +469,20 @@ export default function CartPage() {
                           {shipping === 0 && subtotal > 0 ? (
                             <span className="text-green-600">Free</span>
                           ) : (
-                            `$${shipping.toFixed(2)}`
+                            formatPrice(shipping)
                           )}
                         </span>
                       </div>
 
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Tax (8%)</span>
-                        <span className="font-medium">${tax.toFixed(2)}</span>
+                        <span className="font-medium">{formatPrice(tax)}</span>
                       </div>
                     </div>
 
                     <div className="flex justify-between text-2xl font-bold text-foreground mb-6">
                       <span>Total</span>
-                      <span>${total.toFixed(2)}</span>
+                      <span>{formatPrice(total)}</span>
                     </div>
 
                     {cartItems.length === 0 && (
@@ -488,13 +491,15 @@ export default function CartPage() {
                       </p>
                     )}
 
-                    <Button
-                      className="w-full mb-3 rounded-xl"
-                      size="lg"
-                      disabled={cartItems.length === 0}
-                    >
-                      Proceed to Checkout
-                    </Button>
+                    <Link href="/checkout" className="block mb-3">
+                      <Button
+                        className="w-full rounded-xl"
+                        size="lg"
+                        disabled={cartItems.length === 0}
+                      >
+                        Proceed to Checkout
+                      </Button>
+                    </Link>
 
                     <Link href="/products">
                       <Button

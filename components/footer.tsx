@@ -1,128 +1,72 @@
 import Link from 'next/link'
-import {
-  Store,
-  Sparkles,
-  Mail,
-  ShieldCheck,
-  Truck,
-  RotateCcw,
-  ArrowRight,
-} from 'lucide-react'
+import { Store, Mail, Github, Twitter, Instagram } from 'lucide-react'
 
 export function Footer() {
   const currentYear = new Date().getFullYear()
 
-  const quickLinks = [
-    { href: '/', label: 'Home' },
-    { href: '/products', label: 'Products' },
-    { href: '/cart', label: 'Cart' },
-    { href: '/foryou', label: 'For You' },
-  ]
-
-  const supportLinks = ['Contact Us', 'FAQ', 'Shipping Info', 'Track Order']
-  const legalLinks = ['Privacy Policy', 'Terms of Service', 'Returns', 'Refund Policy']
-
   return (
-    <footer className="relative overflow-hidden w-full bg-primary text-primary-foreground">
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-white blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-64 w-64 rounded-full bg-white/70 blur-3xl" />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto px-4 py-14">
-        <div className="mb-12 rounded-3xl border border-white/15 bg-white/10 backdrop-blur px-6 py-6 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 text-sm mb-3 opacity-90">
-              <Sparkles className="w-4 h-4" />
-              Premium shopping experience
-            </div>
-
-            <h2 className="text-2xl md:text-3xl font-bold">
-              Find your next favorite product.
-            </h2>
-          </div>
-
-          <Link
-            href="/products"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-foreground text-primary px-5 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
-          >
-            Shop Products
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-10">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center">
-                <Store className="w-5 h-5" />
+    <footer className="border-t border-border bg-card">
+      <div className="max-w-7xl mx-auto px-4 py-14">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-10">
+          <div className="col-span-2">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="relative w-9 h-9 rounded-xl bg-foreground text-background flex items-center justify-center">
+                <Store className="w-4 h-4" />
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-brand ring-2 ring-card" />
               </div>
-
-              <div>
-                <h3 className="font-bold text-xl leading-none">ModernShop</h3>
-                <p className="text-xs opacity-70 mt-1">Curated marketplace</p>
-              </div>
+              <span className="text-[17px] font-semibold tracking-tight">
+                Souqly
+              </span>
             </div>
-
-            <p className="text-sm opacity-80 leading-relaxed">
-              Your destination for premium products across electronics, fashion,
-              shoes, and accessories.
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
+              A modern marketplace where independent sellers and curated brands
+              meet. Shop premium products, follow your favorite makers, and
+              build the shop of your dreams.
             </p>
-
-            <div className="mt-5 grid gap-2 text-xs opacity-90">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" />
-                Secure shopping experience
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4" />
-                Fast product discovery
-              </div>
-
-              <div className="flex items-center gap-2">
-                <RotateCcw className="w-4 h-4" />
-                Easy returns
-              </div>
+            <div className="mt-5 flex items-center gap-2">
+              <SocialLink href="#" icon={Twitter} />
+              <SocialLink href="#" icon={Instagram} />
+              <SocialLink href="#" icon={Github} />
             </div>
           </div>
 
-          <FooterColumn title="Quick Links">
-            {quickLinks.map((link) => (
-              <FooterLink key={link.href} href={link.href}>
-                {link.label}
-              </FooterLink>
-            ))}
+          <FooterColumn title="Shop">
+            <FooterLink href="/products">All products</FooterLink>
+            <FooterLink href="/products?category=electronics">
+              Electronics
+            </FooterLink>
+            <FooterLink href="/products?category=fashion">Fashion</FooterLink>
+            <FooterLink href="/products?category=shoes">Shoes</FooterLink>
+            <FooterLink href="/products?category=accessories">
+              Accessories
+            </FooterLink>
           </FooterColumn>
 
-          <FooterColumn title="Support">
-            {supportLinks.map((label) => (
-              <FooterLink key={label} href="#">
-                {label}
-              </FooterLink>
-            ))}
+          <FooterColumn title="Sell">
+            <FooterLink href="/dashboard">Seller dashboard</FooterLink>
+            <FooterLink href="/dashboard/products/new">List a product</FooterLink>
+            <FooterLink href="/dashboard/orders">Manage orders</FooterLink>
+            <FooterLink href="#">Seller handbook</FooterLink>
           </FooterColumn>
 
-          <FooterColumn title="Legal">
-            {legalLinks.map((label) => (
-              <FooterLink key={label} href="#">
-                {label}
-              </FooterLink>
-            ))}
+          <FooterColumn title="Company">
+            <FooterLink href="#">About</FooterLink>
+            <FooterLink href="#">Help center</FooterLink>
+            <FooterLink href="#">Privacy</FooterLink>
+            <FooterLink href="#">Terms</FooterLink>
           </FooterColumn>
         </div>
 
-        <div className="border-t border-primary-foreground/20 pt-7 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-center opacity-80">
-            &copy; {currentYear} ModernShop. All rights reserved.
+        <div className="border-t border-border pt-6 flex flex-col md:flex-row items-center justify-between gap-3 text-sm">
+          <p className="text-muted-foreground">
+            &copy; {currentYear} Souqly &middot; Built with care for makers.
           </p>
-
           <a
-            href="mailto:support@modernshop.com"
-            className="inline-flex items-center gap-2 text-sm opacity-80 hover:opacity-100 transition-opacity"
+            href="mailto:support@souqly.com"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <Mail className="w-4 h-4" />
-            support@modernshop.com
+            support@souqly.com
           </a>
         </div>
       </div>
@@ -130,37 +74,37 @@ export function Footer() {
   )
 }
 
-function FooterColumn({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
+function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="font-semibold mb-4">{title}</h4>
+      <h4 className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-3">
+        {title}
+      </h4>
       <ul className="space-y-2 text-sm">{children}</ul>
     </div>
   )
 }
 
-function FooterLink({
-  href,
-  children,
-}: {
-  href: string
-  children: React.ReactNode
-}) {
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <li>
       <Link
         href={href}
-        className="group inline-flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity"
+        className="text-foreground/80 hover:text-foreground transition-colors"
       >
-        <span className="w-1 h-1 rounded-full bg-primary-foreground/60 group-hover:w-3 transition-all" />
         {children}
       </Link>
     </li>
+  )
+}
+
+function SocialLink({ href, icon: Icon }: { href: string; icon: any }) {
+  return (
+    <Link
+      href={href}
+      className="w-8 h-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+    >
+      <Icon className="w-4 h-4" />
+    </Link>
   )
 }

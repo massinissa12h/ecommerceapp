@@ -1,87 +1,75 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
 import { Footer } from '@/components/footer'
 import { ProductCard } from '@/components/product-card'
 import { ProductFilters, FilterState } from '@/components/product-filters'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchSellers } from '@/lib/sellers'
 import { Button } from '@/components/ui/button'
 import {
   Loader2,
   AlertCircle,
   PackageSearch,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
+  SlidersHorizontal,
+  Store,
+  X,
 } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
+import { useWishlist } from '../hooks/useWishlist'
+import type { Product, SellerSummary } from '@/types/product'
 
-export interface Product {
-  id: string
-  name: string
-  description: string | null
-  category: string | null
-  price: number | null
-  image_url: string | null
-  image: string | null
-  rating: number
-  created_at: string | null
-  tags: string[]
-}
-
-const PAGE_SIZE = 50
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-}
-
-const staggerContainer = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.05,
-      delayChildren: 0.1,
-    },
-  },
-}
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.95 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.4 } },
-}
+const PAGE_SIZE = 24
 
 export default function ProductsPage() {
-  const { cartCount, addToCart } = useCart()
+  const sp = useSearchParams()
+  const sellerId = sp.get('seller')
+  const queryParam = sp.get('q') ?? ''
+  const categoryParam = sp.get('category') ?? ''
 
+  const { cartCount, addToCart } = useCart()
+  const { wishlistIds, toggleWishlist } = useWishlist()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [pageLoading, setPageLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
 
+  const [sellerPreview, setSellerPreview] = useState<SellerSummary | null>(null)
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [sort, setSort] = useState<'newest' | 'rated' | 'priceLow' | 'priceHigh'>(
+    'newest',
+  )
 
   const [filters, setFilters] = useState<FilterState>({
-    categories: [],
+    categories: categoryParam ? [categoryParam] : [],
     priceRange: [0, 5000],
     minRating: 0,
   })
+  const [searchTerm, setSearchTerm] = useState(queryParam)
 
-  const [searchTerm, setSearchTerm] = useState('')
+  // Keep search/category in sync with URL params (e.g. when nav search updates)
+  useEffect(() => {
+    setSearchTerm(queryParam)
+  }, [queryParam])
+  useEffect(() => {
+    setFilters((f) =>
+      categoryParam ? { ...f, categories: [categoryParam] } : { ...f, categories: [] },
+    )
+  }, [categoryParam])
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const fetchProducts = useCallback(
     async (targetPage = page) => {
-      if (products.length === 0) {
-        setLoading(true)
-      } else {
-        setPageLoading(true)
-      }
-
+      if (products.length === 0) setLoading(true)
+      else setPageLoading(true)
       setError(null)
 
       try {
@@ -91,95 +79,84 @@ export default function ProductsPage() {
         let query = supabase
           .from('products')
           .select('*', { count: 'exact' })
-          .order('created_at', { ascending: false })
+          .eq('status', 'active')
           .range(from, to)
+
+        if (sort === 'newest') {
+          query = query.order('created_at', { ascending: false })
+        } else if (sort === 'priceLow') {
+          query = query.order('price', { ascending: true })
+        } else if (sort === 'priceHigh') {
+          query = query.order('price', { ascending: false })
+        } else if (sort === 'rated') {
+          query = query.order('is_featured', { ascending: false }).order('created_at', { ascending: false })
+        }
 
         if (filters.categories.length > 0) {
           query = query.in('category', filters.categories)
         }
-
         if (filters.priceRange[0] > 0) {
           query = query.gte('price', filters.priceRange[0])
         }
-
         if (filters.priceRange[1] < 5000) {
           query = query.lte('price', filters.priceRange[1])
         }
+        if (sellerId) query = query.eq('seller_id', sellerId)
 
         if (searchTerm.trim()) {
           const q = searchTerm.trim().replace(/[%_]/g, '')
           query = query.or(
-            `name.ilike.%${q}%,description.ilike.%${q}%,category.ilike.%${q}%`
+            `name.ilike.%${q}%,description.ilike.%${q}%,category.ilike.%${q}%`,
           )
         }
 
-        const { data: productsData, error: productsError, count } = await query
+        const { data, error, count } = await query
+        if (error) throw error
 
-        if (productsError) throw productsError
-
-        const productIds = (productsData ?? []).map((p: any) => p.id)
-
-        let tagsByProduct: Record<string, string[]> = {}
-        let reviewsByProduct: Record<string, { total: number; count: number }> =
-          {}
-
-        if (productIds.length > 0) {
-          const [{ data: tagsData }, { data: reviewsData, error: reviewsError }] =
-            await Promise.all([
-              supabase
-                .from('product_tags')
-                .select('product_id, tag')
-                .in('product_id', productIds),
-
-              supabase
-                .from('reviews')
-                .select('product_id, rating')
-                .in('product_id', productIds),
-            ])
-
-          if (reviewsError) throw reviewsError
-
-          tagsData?.forEach(({ product_id, tag }: any) => {
-            if (!tagsByProduct[product_id]) tagsByProduct[product_id] = []
-            tagsByProduct[product_id].push(tag)
-          })
-
-          reviewsData?.forEach(({ product_id, rating }: any) => {
-            if (!reviewsByProduct[product_id]) {
+        const productIds = (data ?? []).map((p: any) => p.id)
+        let reviewsByProduct: Record<string, { total: number; count: number }> = {}
+        if (productIds.length) {
+          const { data: reviewRows } = await supabase
+            .from('reviews')
+            .select('product_id, rating')
+            .in('product_id', productIds)
+          reviewRows?.forEach(({ product_id, rating }: any) => {
+            if (!reviewsByProduct[product_id])
               reviewsByProduct[product_id] = { total: 0, count: 0 }
-            }
-
             reviewsByProduct[product_id].total += rating
             reviewsByProduct[product_id].count += 1
           })
         }
 
-        const mappedProducts: Product[] = (productsData ?? []).map((p: any) => {
-          const reviewStats = reviewsByProduct[p.id]
+        const sellerMap = await fetchSellers((data ?? []).map((p: any) => p.seller_id))
 
-          const avgRating = reviewStats
-                ? Number((reviewStats.total / reviewStats.count).toFixed(1))
-                : 0
-
+        const mapped: Product[] = (data ?? []).map((p: any) => {
+          const stats = reviewsByProduct[p.id]
           return {
             ...p,
-            rating: avgRating,
-            image_url: p.image_url ?? null,
-            image: p.image_url ?? null,
-            tags: tagsByProduct[p.id] ?? [],
+            rating: stats ? Number((stats.total / stats.count).toFixed(1)) : 0,
+            review_count: stats?.count ?? 0,
+            image: p.image_url ?? '',
+            seller: p.seller_id ? sellerMap[p.seller_id] : null,
           }
         })
 
-        setProducts(mappedProducts)
+        setProducts(mapped)
         setTotalCount(count ?? 0)
-      } catch (err: any) {
-        setError(err.message ?? 'Failed to load products.')
+
+        if (sellerId && !sellerPreview) {
+          const list = Object.values(sellerMap)
+          if (list[0]) setSellerPreview(list[0])
+        }
+      } catch (e: any) {
+        setError(e.message ?? 'Failed to load products.')
       } finally {
         setLoading(false)
         setPageLoading(false)
       }
     },
-    [page, filters, searchTerm, products.length]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [page, filters, searchTerm, sellerId, sort],
   )
 
   useEffect(() => {
@@ -188,286 +165,238 @@ export default function ProductsPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [filters, searchTerm])
+  }, [filters, searchTerm, sort, sellerId])
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      if ((product.rating ?? 0) < filters.minRating) {
-        return false
-      }
+    if (filters.minRating === 0) return products
+    return products.filter((p) => (p.rating ?? 0) >= filters.minRating)
+  }, [products, filters.minRating])
 
-      if (searchTerm) {
-        const q = searchTerm.toLowerCase()
-        const productCategory = (product.category ?? '').toLowerCase()
-
-        return (
-          product.name.toLowerCase().includes(q) ||
-          (product.description ?? '').toLowerCase().includes(q) ||
-          productCategory.includes(q) ||
-          product.tags.some((tag) => tag.toLowerCase().includes(q))
-        )
-      }
-
-      return true
-    })
-  }, [products, filters.minRating, searchTerm])
-
-  const goToPreviousPage = () => {
-    if (page > 1) {
-      setPage((current) => current - 1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-  }
-
-  const goToNextPage = () => {
-    if (page < totalPages) {
-      setPage((current) => current + 1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-  }
+  const hasActive =
+    searchTerm ||
+    filters.categories.length > 0 ||
+    filters.minRating > 0 ||
+    filters.priceRange[0] !== 0 ||
+    filters.priceRange[1] !== 5000
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Navbar cartCount={cartCount} />
 
       <main className="flex-1">
-        <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl" />
-            <div className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl" />
-            <div className="absolute top-1/2 right-1/4 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
+        {/* Header */}
+        <section className="border-b border-border bg-card">
+          <div className="max-w-7xl mx-auto px-4 py-10">
+            {sellerPreview ? (
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-secondary overflow-hidden border border-border flex items-center justify-center text-base font-semibold text-muted-foreground">
+                  {sellerPreview.avatar_url ? (
+                    <img
+                      src={sellerPreview.avatar_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    (sellerPreview.shop_name || sellerPreview.username || 'S').charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1 inline-flex items-center gap-1.5">
+                    <Store className="w-3.5 h-3.5" /> Shop
+                  </p>
+                  <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+                    {sellerPreview.shop_name || sellerPreview.username || 'Independent seller'}
+                  </h1>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1">
+                  Marketplace
+                </p>
+                <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+                  {categoryParam ? `Shop ${categoryParam}` : 'All products'}
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {totalCount.toLocaleString()} products from independent sellers and curated brands.
+                </p>
+              </>
+            )}
           </div>
-
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={staggerContainer}
-            className="relative max-w-7xl mx-auto px-4 py-20 md:py-28"
-          >
-            <motion.div
-              variants={scaleIn}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-4 py-2 text-sm mb-6 backdrop-blur-xl"
-            >
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span className="text-emerald-100">Discover quality products</span>
-            </motion.div>
-
-            <motion.h1
-              variants={fadeUp}
-              className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-balance"
-            >
-              Curated for You
-            </motion.h1>
-
-            <motion.p
-              variants={fadeUp}
-              className="text-slate-300 max-w-2xl text-lg leading-relaxed"
-            >
-              Explore our premium collection of carefully selected items. Filter by category, price, and rating to find exactly what you&apos;re looking for.
-            </motion.p>
-          </motion.div>
         </section>
 
-        <section className="max-w-7xl mx-auto px-4 py-10 md:py-14">
-          <AnimatePresence mode="wait">
-            {loading ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-28 gap-4"
-              >
-                <Loader2 className="w-11 h-11 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">
-                  Loading first 50 products...
-                </p>
-              </motion.div>
-            ) : error ? (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-24 gap-5"
-              >
-                <div className="flex items-start gap-3 bg-destructive/10 text-destructive border border-destructive/30 rounded-xl px-6 py-5 max-w-md w-full shadow-sm">
-                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-
-                  <div>
-                    <p className="font-semibold">Failed to load products</p>
-                    <p className="text-sm mt-1 opacity-90">{error}</p>
-                  </div>
+        <section className="max-w-7xl mx-auto px-4 py-8">
+          {error ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-4">
+              <div className="flex items-start gap-3 bg-destructive/10 text-destructive border border-destructive/30 rounded-xl px-6 py-4 max-w-md">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Failed to load products</p>
+                  <p className="text-sm mt-1 opacity-90">{error}</p>
                 </div>
-
-                <Button onClick={() => fetchProducts(page)} variant="outline">
-                  Try Again
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="products"
-                initial="hidden"
-                animate="visible"
-                variants={staggerContainer}
-                className="flex flex-col lg:flex-row gap-8"
+              </div>
+              <Button onClick={() => fetchProducts(page)} variant="outline">
+                Try again
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col lg:flex-row gap-8">
+              <aside
+                className={`${showFilters ? 'block' : 'hidden'} lg:block lg:w-64 shrink-0`}
               >
-                <motion.aside variants={fadeUp} className="lg:w-72 shrink-0">
-                  <div className="sticky top-24 rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md p-6 shadow-lg">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-5">Refine your search</h3>
-                    <ProductFilters
-                      onFilterChange={setFilters}
-                      onSearchChange={setSearchTerm}
-                    />
-                  </div>
-                </motion.aside>
+                <ProductFilters
+                  onFilterChange={(f) => setFilters(f)}
+                  onSearchChange={(s) => setSearchTerm(s)}
+                />
+              </aside>
 
-                <div className="flex-1 min-w-0">
-                  <motion.div
-                    variants={fadeUp}
-                    className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4"
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-3 mb-5">
+                  <button
+                    onClick={() => setShowFilters((s) => !s)}
+                    className="lg:hidden inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-card text-sm"
                   >
-                    <div>
-                      <h2 className="text-3xl font-bold text-slate-900">
-                        {filteredProducts.length > 0 ? 'Results' : 'No results'}
-                      </h2>
-
-                      <p className="text-sm text-slate-600 mt-2">
-                        {filteredProducts.length > 0 ? (
-                          <>Page {page} of {totalPages} · <span className="font-medium">{filteredProducts.length}</span> products</>
-                        ) : (
-                          'Try adjusting your filters'
-                        )}
-                      </p>
-                    </div>
-
-                    {(searchTerm ||
-                      filters.categories.length > 0 ||
-                      filters.minRating > 0 ||
-                      filters.priceRange[0] !== 0 ||
-                      filters.priceRange[1] !== 5000) && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setFilters({
-                            categories: [],
-                            priceRange: [0, 5000],
-                            minRating: 0,
-                          })
-                          setSearchTerm('')
-                          setPage(1)
-                        }}
-                        className="w-full sm:w-auto"
-                      >
-                        Clear all filters
-                      </Button>
-                    )}
-                  </motion.div>
-
-                  {pageLoading && (
-                    <div className="mb-5 flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                      Loading page {page}...
-                    </div>
-                  )}
-
-                  {filteredProducts.length > 0 ? (
-                    <>
-                      <motion.div
-                        layout
-                        variants={staggerContainer}
-                        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
-                      >
-                        {filteredProducts.map((product) => (
-                          <motion.div
-                            layout
-                            key={product.id}
-                            variants={fadeUp}
-                            whileHover={{ y: -8, transition: { duration: 0.2 } }}
-                            className="h-full"
-                          >
-                            <ProductCard
-                              product={product as any}
-                              onAddToCart={() => addToCart(product.id)}
-                            />
-                          </motion.div>
-                        ))}
-                      </motion.div>
-
-                      <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-200 pt-8">
-                        <p className="text-sm text-slate-600 font-medium">
-                          {totalCount.toLocaleString()} total products · Page {page} of {totalPages}
-                        </p>
-
-                        <div className="flex items-center gap-3">
-                          <Button
-                            variant="outline"
-                            onClick={goToPreviousPage}
-                            disabled={page === 1 || pageLoading}
-                            className="gap-2 text-slate-700"
-                          >
-                            <ChevronLeft className="w-4 h-4" />
-                            <span className="hidden sm:inline">Previous</span>
-                          </Button>
-
-                          <div className="px-3 py-1.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg">
-                            {page}
-                          </div>
-
-                          <Button
-                            onClick={goToNextPage}
-                            disabled={page >= totalPages || pageLoading}
-                            className="gap-2"
-                          >
-                            <span className="hidden sm:inline">Next</span>
-                            <ChevronRight className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.97 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.4 }}
-                      className="text-center py-24 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100"
+                    <SlidersHorizontal className="w-4 h-4" />
+                    Filters
+                  </button>
+                  <p className="text-sm text-muted-foreground hidden lg:block">
+                    {loading
+                      ? 'Loading…'
+                      : `Showing ${filteredProducts.length} of ${totalCount.toLocaleString()}`}
+                  </p>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <label className="text-xs text-muted-foreground hidden sm:inline">
+                      Sort
+                    </label>
+                    <select
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value as any)}
+                      className="h-9 rounded-md border border-input bg-background px-2.5 text-sm"
                     >
-                      <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
-                        <PackageSearch className="w-8 h-8 text-slate-500" />
-                      </div>
-
-                      <h3 className="text-2xl font-bold text-slate-900 mb-2">
-                        No products found
-                      </h3>
-
-                      <p className="text-slate-600 mb-8 max-w-sm mx-auto">
-                        We couldn&apos;t find any products matching your criteria. Try adjusting your filters or search term.
-                      </p>
-
-                      <Button
-                        onClick={() => {
-                          setFilters({
-                            categories: [],
-                            priceRange: [0, 5000],
-                            minRating: 0,
-                          })
-                          setSearchTerm('')
-                          setPage(1)
-                        }}
-                        className="bg-slate-900 hover:bg-slate-800 text-white"
-                      >
-                        Reset all filters
-                      </Button>
-                    </motion.div>
-                  )}
+                      <option value="newest">Newest</option>
+                      <option value="rated">Featured</option>
+                      <option value="priceLow">Price: low to high</option>
+                      <option value="priceHigh">Price: high to low</option>
+                    </select>
+                  </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
+                {hasActive && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    {searchTerm && (
+                      <Chip onClear={() => setSearchTerm('')}>“{searchTerm}”</Chip>
+                    )}
+                    {filters.categories.map((c) => (
+                      <Chip
+                        key={c}
+                        onClear={() =>
+                          setFilters((f) => ({
+                            ...f,
+                            categories: f.categories.filter((x) => x !== c),
+                          }))
+                        }
+                      >
+                        {c}
+                      </Chip>
+                    ))}
+                    {filters.minRating > 0 && (
+                      <Chip onClear={() => setFilters((f) => ({ ...f, minRating: 0 }))}>
+                        {filters.minRating}+ stars
+                      </Chip>
+                    )}
+                  </div>
+                )}
+
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center py-24 gap-3">
+                    <Loader2 className="w-7 h-7 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Loading products...</p>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="text-center py-20 rounded-xl border border-dashed border-border bg-card">
+                    <PackageSearch className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                    <h3 className="font-semibold text-lg">No products found</h3>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+                      Try adjusting your filters or browse all products.
+                    </p>
+                    <Link href="/products">
+                      <Button variant="outline" className="mt-4">Reset</Button>
+                    </Link>
+                  </div>
+                ) : (
+                  <>
+                    {pageLoading && (
+                      <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Updating…
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
+                      {filteredProducts.map((p) => (
+                        <ProductCard
+                          key={p.id}
+                          product={p as any}
+                          onAddToCart={() => addToCart(p.id)}
+                          onToggleWishlist={() => toggleWishlist(p.id)}
+                          wishlisted={wishlistIds.has(p.id)}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border pt-6">
+                      <p className="text-xs text-muted-foreground">
+                        Page {page} of {totalPages}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={page === 1 || pageLoading}
+                          onClick={() => {
+                            setPage((p) => Math.max(1, p - 1))
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                          }}
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-1" /> Prev
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={page >= totalPages || pageLoading}
+                          onClick={() => {
+                            setPage((p) => Math.min(totalPages, p + 1))
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                          }}
+                        >
+                          Next <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </section>
       </main>
 
       <Footer />
     </div>
+  )
+}
+
+function Chip({
+  children,
+  onClear,
+}: {
+  children: React.ReactNode
+  onClear: () => void
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary text-foreground text-xs px-2.5 py-1">
+      <span className="capitalize">{children}</span>
+      <button onClick={onClear} className="text-muted-foreground hover:text-foreground">
+        <X className="w-3 h-3" />
+      </button>
+    </span>
   )
 }

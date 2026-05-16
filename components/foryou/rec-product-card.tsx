@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Sparkles, ShoppingBag } from 'lucide-react'
 import type { RecommendedProduct } from '@/lib/recommender'
+import { formatPrice } from '@/lib/format'
 
 interface RecProductCardProps {
   product: RecommendedProduct
@@ -15,7 +16,7 @@ export function RecProductCard({ product, badge }: RecProductCardProps) {
     <motion.div
       whileHover={{ y: -3 }}
       transition={{ type: 'spring', stiffness: 250, damping: 18 }}
-      className="group h-full flex flex-col bg-white rounded-2xl border border-border/60 overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
+      className="group h-full flex flex-col bg-card rounded-2xl border border-border/60 overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all"
     >
       <Link href={`/product/${product.id}`} className="block">
         <div className="relative aspect-square bg-secondary/50 overflow-hidden">
@@ -57,7 +58,7 @@ export function RecProductCard({ product, badge }: RecProductCardProps) {
 
         <div className="mt-auto pt-1 flex items-center justify-between">
           {product.price !== null && (
-            <span className="font-bold text-primary text-base">${Number(product.price).toFixed(2)}</span>
+            <span className="font-bold text-primary text-base">{formatPrice(product.price)}</span>
           )}
         </div>
       </div>

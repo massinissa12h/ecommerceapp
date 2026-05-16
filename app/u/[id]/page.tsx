@@ -36,6 +36,9 @@ interface PublicProfile {
   country: string | null
   bio: string | null
   avatar_url: string | null
+  shop_name: string | null
+  shop_slug: string | null
+  is_seller: boolean
 }
 
 interface ProfileStats {
@@ -85,7 +88,7 @@ export default function PublicProfilePage() {
       supabase.from('users').select('id, username, email, created_at').eq('id', profileId).maybeSingle(),
       supabase
         .from('profiles')
-        .select('first_name, last_name, city, country, bio, avatar_url')
+        .select('first_name, last_name, city, country, bio, avatar_url, shop_name, shop_slug, is_seller')
         .eq('id', profileId)
         .maybeSingle(),
     ])
@@ -107,6 +110,9 @@ export default function PublicProfilePage() {
       country: profileRow?.country ?? null,
       bio: profileRow?.bio ?? null,
       avatar_url: profileRow?.avatar_url ?? null,
+      shop_name: (profileRow as any)?.shop_name ?? null,
+      shop_slug: (profileRow as any)?.shop_slug ?? null,
+      is_seller: !!(profileRow as any)?.is_seller,
     })
 
     const [{ count: reviewCount }, { count: friendCount }, { count: likeCount }] =
@@ -263,7 +269,7 @@ export default function PublicProfilePage() {
           initial="hidden"
           animate="visible"
           variants={fadeUp}
-          className="relative bg-white border border-border rounded-3xl shadow-sm overflow-hidden"
+          className="relative bg-card border border-border rounded-3xl shadow-sm overflow-hidden"
         >
 
           <div className="h-32 bg-gradient-to-br from-primary via-primary/80 to-primary/60 relative">
@@ -277,7 +283,7 @@ export default function PublicProfilePage() {
           <div className="px-6 md:px-10 pb-8">
 
             <div className="flex flex-col md:flex-row md:items-end md:justify-between -mt-12 gap-4">
-              <Avatar className="size-24 ring-4 ring-white shadow-lg bg-white">
+              <Avatar className="size-24 ring-4 ring-card shadow-lg bg-card">
                 {profile.avatar_url ? (
                   <AvatarImage src={profile.avatar_url} alt={fullName} />
                 ) : null}
@@ -375,6 +381,14 @@ export default function PublicProfilePage() {
                 {memberSince && <span>Member since {memberSince}</span>}
                 {location && <span>· {location}</span>}
               </div>
+              {(profile.shop_name || profile.shop_slug) && (
+                <Link
+                  href={profile.shop_slug ? `/shop/${profile.shop_slug}` : `/products?seller=${profile.id}`}
+                  className="mt-3 inline-flex items-center gap-2 rounded-full bg-brand text-brand-foreground px-3 py-1.5 text-sm font-medium hover:bg-brand/90 transition-colors"
+                >
+                  Visit shop: {profile.shop_name || profile.username || 'their store'} →
+                </Link>
+              )}
             </div>
 
             {profile.bio && (
@@ -451,7 +465,7 @@ function RecentReviews({ userId }: { userId: string }) {
       initial="hidden"
       animate="visible"
       variants={fadeUp}
-      className="mt-8 bg-white border border-border rounded-3xl p-6 shadow-sm"
+      className="mt-8 bg-card border border-border rounded-3xl p-6 shadow-sm"
     >
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
         <Star className="w-5 h-5 text-primary" />

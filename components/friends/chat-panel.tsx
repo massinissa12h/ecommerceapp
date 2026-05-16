@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { useMessages } from '@/hooks/use-messages'
 import { UserAvatar, userDisplayName } from './user-avatar'
 import type { Message, ProductShareMetadata, PublicUser } from '@/lib/types/social'
+import { formatPrice } from '@/lib/format'
 
 function isProductShare(meta: Message['metadata']): meta is ProductShareMetadata {
   return (
@@ -31,7 +32,7 @@ function ProductShareCard({
       className={`block mt-2 rounded-xl overflow-hidden border ${
         mine
           ? 'bg-primary-foreground/10 border-primary-foreground/20'
-          : 'bg-white border-border'
+          : 'bg-card border-border'
       } hover:opacity-90 transition-opacity`}
     >
       <div className="flex">
@@ -64,7 +65,7 @@ function ProductShareCard({
                 mine ? 'text-primary-foreground/90' : 'text-primary'
               }`}
             >
-              ${meta.price.toFixed(2)}
+              {formatPrice(meta.price)}
             </p>
           )}
         </div>
@@ -119,7 +120,7 @@ export function ChatPanel({ currentUserId, peer, onClose }: ChatPanelProps) {
   }
 
   return (
-    <div className="flex flex-1 flex-col bg-white rounded-3xl border border-border/60 shadow-sm overflow-hidden min-h-[60vh] max-h-[80vh]">
+    <div className="flex flex-1 flex-col bg-card rounded-3xl border border-border/60 shadow-sm overflow-hidden min-h-[60vh] max-h-[80vh]">
 
       <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-secondary/40">
         <div className="flex items-center gap-3">
@@ -196,13 +197,13 @@ export function ChatPanel({ currentUserId, peer, onClose }: ChatPanelProps) {
 
       <form
         onSubmit={handleSend}
-        className="border-t border-border bg-white p-3 flex items-center gap-2"
+        className="border-t border-border bg-card p-3 flex items-center gap-2"
       >
         <Input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={`Message ${userDisplayName(peer)}…`}
-          className="rounded-full bg-secondary/70 border-border focus:bg-white"
+          className="rounded-full bg-secondary/70 border-border focus:bg-card"
           disabled={sending}
           maxLength={4000}
         />

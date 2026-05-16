@@ -38,6 +38,18 @@ interface Product {
   image: string | null
   created_at: string | null
   tags: string[]
+  seller_id: string | null
+  stock?: number
+  compare_at_price?: number | null
+}
+
+interface SellerInfo {
+  id: string
+  username: string | null
+  shop_name: string | null
+  shop_slug: string | null
+  shop_bio: string | null
+  avatar_url: string | null
 }
 
 interface Review {
@@ -114,6 +126,7 @@ export default function ProductDetailsPage() {
   const { cartCount, addToCart } = useCart()
 
   const [product, setProduct] = useState<Product | null>(null)
+  const [seller, setSeller] = useState<SellerInfo | null>(null)
   const [similarProducts, setSimilarProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -200,6 +213,34 @@ export default function ProductDetailsPage() {
         tags,
       })
 
+      // Resolve seller info if this product belongs to one
+      if (productData.seller_id) {
+        const [{ data: userRow }, { data: profileRow }] = await Promise.all([
+          supabase
+            .from('users')
+            .select('id, username')
+            .eq('id', productData.seller_id)
+            .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('shop_name, shop_slug, shop_bio, avatar_url')
+            .eq('id', productData.seller_id)
+            .maybeSingle(),
+        ])
+        if (userRow) {
+          setSeller({
+            id: productData.seller_id,
+            username: userRow.username ?? null,
+            shop_name: profileRow?.shop_name ?? null,
+            shop_slug: profileRow?.shop_slug ?? null,
+            shop_bio: profileRow?.shop_bio ?? null,
+            avatar_url: profileRow?.avatar_url ?? null,
+          })
+        }
+      } else {
+        setSeller(null)
+      }
+
       if (productData.category) {
         const { data: similarData } = await supabase
           .from('products')
@@ -248,17 +289,18 @@ export default function ProductDetailsPage() {
   useEffect(() => {
     if (!userId || !productId) return
 
-    const fetchInteractions = async () => {
+    // The heart on the product page is the wishlist toggle — read state from
+    // the wishlist table so it stays in sync with /wishlist and the cards.
+    const fetchWishlistState = async () => {
       const { data } = await supabase
-        .from('interactions')
-        .select('action')
+        .from('wishlist')
+        .select('id')
         .eq('user_id', userId)
         .eq('product_id', productId)
-
-      setIsLiked(data?.some((r) => r.action === 'like') ?? false)
+        .maybeSingle()
+      setIsLiked(!!data)
     }
-
-    fetchInteractions()
+    fetchWishlistState()
   }, [userId, productId])
 
   const fetchReviews = useCallback(async () => {
@@ -312,34 +354,35 @@ export default function ProductDetailsPage() {
     fetchReviews()
   }, [fetchReviews])
 
-  const toggleInteraction = async (action: 'like') => {
+  const toggleInteraction = async (_action: 'like') => {
     if (!userId) return
-
     setInteractionLoading(true)
 
     if (isLiked) {
       await supabase
-        .from('interactions')
+        .from('wishlist')
         .delete()
         .eq('user_id', userId)
         .eq('product_id', productId)
-        .eq('action', action)
-
       setIsLiked(false)
     } else {
-      await supabase.from('interactions').upsert(
-        {
-          user_id: userId,
-          product_id: productId,
-          action,
-          created_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'user_id,product_id,action',
-        }
-      )
-
+      await supabase
+        .from('wishlist')
+        .insert({ user_id: userId, product_id: productId })
       setIsLiked(true)
+      // Keep an analytics breadcrumb for the recommender (best-effort).
+      supabase
+        .from('interactions')
+        .upsert(
+          {
+            user_id: userId,
+            product_id: productId,
+            action: 'save',
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,product_id,action' },
+        )
+        .then(() => {})
     }
 
     setInteractionLoading(false)
@@ -546,9 +589,68 @@ export default function ProductDetailsPage() {
                 )}
               </div>
 
-              <p className="text-4xl font-bold text-foreground mb-6">
+              <p className="text-4xl font-bold text-foreground mb-2">
                 ${(product.price ?? 0).toFixed(2)}
               </p>
+              {product.compare_at_price &&
+                product.compare_at_price > (product.price ?? 0) && (
+                  <p className="text-sm text-muted-foreground line-through mb-4">
+                    ${Number(product.compare_at_price).toFixed(2)}
+                  </p>
+                )}
+
+              {seller && (
+                <Link
+                  href={seller.shop_slug ? `/shop/${seller.shop_slug}` : `/u/${seller.id}`}
+                  className="mb-6 inline-flex items-center gap-3 rounded-lg border border-border bg-card hover:border-foreground/20 transition-colors p-3 w-fit"
+                >
+                  <div className="w-10 h-10 rounded-full bg-secondary border border-border overflow-hidden flex items-center justify-center text-sm font-semibold text-muted-foreground">
+                    {seller.avatar_url ? (
+                      <img src={seller.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (seller.shop_name || seller.username || 'S').charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Sold by</p>
+                    <p className="text-sm font-medium">
+                      {seller.shop_name || seller.username || 'Independent seller'}
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">
+                    Visit shop →
+                  </span>
+                </Link>
+              )}
+              {!seller && (
+                <div className="mb-6 inline-flex items-center gap-3 rounded-lg border border-border bg-card p-3 w-fit">
+                  <div className="w-10 h-10 rounded-full bg-foreground text-background flex items-center justify-center text-sm font-semibold">
+                    S
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Sold by</p>
+                    <p className="text-sm font-medium">Souqly</p>
+                  </div>
+                </div>
+              )}
+
+              {typeof product.stock === 'number' && (
+                <p
+                  className={`mb-4 text-xs font-medium ${
+                    product.stock === 0
+                      ? 'text-destructive'
+                      : product.stock <= 5
+                        ? 'text-warning'
+                        : 'text-success'
+                  }`}
+                >
+                  {product.stock === 0
+                    ? 'Out of stock'
+                    : product.stock <= 5
+                      ? `Only ${product.stock} left in stock`
+                      : 'In stock'}
+                </p>
+              )}
 
               {product.description && (
                 <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
@@ -630,19 +732,25 @@ export default function ProductDetailsPage() {
                   whileTap={{ scale: 0.94 }}
                   onClick={() => toggleInteraction('like')}
                   disabled={!userId || interactionLoading}
-                  title={userId ? (isLiked ? 'Unlike' : 'Like') : 'Sign in to like'}
+                  title={
+                    userId
+                      ? isLiked
+                        ? 'Remove from wishlist'
+                        : 'Save to wishlist'
+                      : 'Sign in to save'
+                  }
                   className={`flex flex-col items-center justify-center gap-0.5 w-16 h-12 rounded-xl border transition-all text-xs font-medium ${
                     isLiked
-                      ? 'border-rose-400 bg-rose-50 text-rose-500'
-                      : 'border-border hover:border-rose-300 hover:bg-rose-50 text-muted-foreground hover:text-rose-500'
+                      ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                      : 'border-border hover:border-destructive/40 hover:bg-destructive/10 text-muted-foreground hover:text-destructive'
                   } disabled:opacity-40 disabled:cursor-not-allowed`}
                 >
                   <Heart
                     className={`w-4 h-4 ${
-                      isLiked ? 'fill-rose-500 text-rose-500' : ''
+                      isLiked ? 'fill-destructive text-destructive' : ''
                     }`}
                   />
-                  <span>{isLiked ? 'Liked' : 'Like'}</span>
+                  <span>{isLiked ? 'Saved' : 'Save'}</span>
                 </motion.button>
 
                 <motion.button
@@ -718,7 +826,7 @@ export default function ProductDetailsPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
               <motion.div variants={fadeUp} className="lg:col-span-1">
-                <div className="bg-white border border-border rounded-2xl p-6 shadow-sm">
+                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
                   <div className="text-center mb-6">
                     <p className="text-6xl font-bold text-foreground">
                       {avgRating > 0 ? avgRating.toFixed(1) : '—'}
@@ -772,7 +880,7 @@ export default function ProductDetailsPage() {
                       initial={{ opacity: 0, y: 18 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -12 }}
-                      className="bg-white border border-border rounded-2xl p-6 shadow-sm"
+                      className="bg-card border border-border rounded-2xl p-6 shadow-sm"
                     >
                       <h3 className="font-semibold text-foreground mb-4">
                         {editingReview ? 'Edit Your Review' : 'Write a Review'}
@@ -844,7 +952,7 @@ export default function ProductDetailsPage() {
                   <motion.div
                     initial={{ opacity: 0, scale: 0.97 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="text-center py-12 bg-white border border-border rounded-2xl shadow-sm"
+                    className="text-center py-12 bg-card border border-border rounded-2xl shadow-sm"
                   >
                     <Star className="w-10 h-10 text-border mx-auto mb-3" />
                     <p className="font-medium text-foreground">No reviews yet</p>
@@ -867,7 +975,7 @@ export default function ProductDetailsPage() {
                           key={review.id}
                           variants={fadeUp}
                           whileHover={{ y: -3 }}
-                          className={`bg-white border rounded-2xl p-5 shadow-sm ${
+                          className={`bg-card border rounded-2xl p-5 shadow-sm ${
                             isOwn ? 'border-primary/30 bg-primary/5' : 'border-border'
                           }`}
                         >

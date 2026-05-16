@@ -134,7 +134,7 @@ export default function FriendsPage() {
 
         <div className="grid lg:grid-cols-[380px_1fr] gap-6">
 
-          <div className="bg-white rounded-3xl border border-border/60 shadow-sm p-4 lg:sticky lg:top-24 lg:self-start">
+          <div className="bg-card rounded-3xl border border-border/60 shadow-sm p-4 lg:sticky lg:top-24 lg:self-start">
             <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
               <TabsList className="w-full grid grid-cols-3 h-auto bg-secondary/70 rounded-2xl p-1">
                 {tabsItems.map((t) => {
@@ -143,7 +143,7 @@ export default function FriendsPage() {
                     <TabsTrigger
                       key={t.id}
                       value={t.id}
-                      className="flex flex-col gap-1 py-2 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow"
+                      className="flex flex-col gap-1 py-2 rounded-xl data-[state=active]:bg-card data-[state=active]:shadow"
                     >
                       <div className="flex items-center gap-1.5">
                         <Icon className="w-4 h-4" />

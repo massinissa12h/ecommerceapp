@@ -51,7 +51,7 @@ export function FindPeople({ searchUsers, sendRequest }: FindPeopleProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by username or email…"
-          className="pl-10 rounded-full bg-secondary/70 border-border focus:bg-white h-11"
+          className="pl-10 rounded-full bg-secondary/70 border-border focus:bg-card h-11"
         />
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
       </div>
@@ -79,7 +79,7 @@ export function FindPeople({ searchUsers, sendRequest }: FindPeopleProps) {
             return (
               <div
                 key={u.id}
-                className="flex items-center justify-between gap-3 px-4 py-3 bg-white border border-border/60 rounded-2xl hover:border-primary/30 transition-colors"
+                className="flex items-center justify-between gap-3 px-4 py-3 bg-card border border-border/60 rounded-2xl hover:border-primary/30 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <UserAvatar user={u} />

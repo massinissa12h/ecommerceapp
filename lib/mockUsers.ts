@@ -11,7 +11,7 @@ export interface User {
 export const mockUsers: User[] = [
   {
     id: '1',
-    email: 'admin@modernshop.com',
+    email: 'admin@souqly.com',
     name: 'Admin User',
     role: 'admin',
     status: 'active',

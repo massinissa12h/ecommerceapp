@@ -2,6 +2,7 @@ import Image from 'next/image'
 import { Product } from '@/lib/mockProducts'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
+import { formatPrice } from '@/lib/format'
 
 interface CartItemProps {
   product: Product
@@ -39,7 +40,7 @@ export function CartItem({
             {product.name}
           </h3>
           <p className="text-sm text-muted-foreground">
-            ${product.price.toFixed(2)} each
+            {formatPrice(product.price)} each
           </p>
         </div>
 
@@ -65,7 +66,7 @@ export function CartItem({
       <div className="flex flex-col items-end justify-between">
         <div className="text-right">
           <p className="font-bold text-lg text-foreground">
-            ${total.toFixed(2)}
+            {formatPrice(total)}
           </p>
         </div>
         <Button

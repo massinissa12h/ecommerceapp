@@ -47,7 +47,7 @@ export function RequestsList({
             {incoming.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between gap-3 px-4 py-3 bg-white border border-border/60 rounded-2xl"
+                className="flex items-center justify-between gap-3 px-4 py-3 bg-card border border-border/60 rounded-2xl"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <UserAvatar user={r.other} />
@@ -91,7 +91,7 @@ export function RequestsList({
             {outgoing.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between gap-3 px-4 py-3 bg-white border border-border/60 rounded-2xl"
+                className="flex items-center justify-between gap-3 px-4 py-3 bg-card border border-border/60 rounded-2xl"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <UserAvatar user={r.other} />

@@ -155,7 +155,7 @@ export function ShareToFriendsDialog({
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl border transition-colors text-left ${
                         isSelected
                           ? 'bg-primary/5 border-primary/40'
-                          : 'bg-white border-border hover:border-primary/20'
+                          : 'bg-card border-border hover:border-primary/20'
                       }`}
                     >
                       <UserAvatar user={f.other} className="size-9" />

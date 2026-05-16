@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabaseClient'
-import { Navbar } from '@/components/navbar'
-import { Footer } from '@/components/footer'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,12 +11,11 @@ import {
   Trash2,
   Loader2,
   Package,
-  DollarSign,
+  Coins,
   Star,
   Layers,
   Plus,
   X,
-  Sparkles,
   ImageIcon,
   Save,
   SlidersHorizontal,
@@ -50,6 +47,7 @@ const stagger = {
 
 export default function AdminPage() {
   const [products, setProducts] = useState<Product[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [sortBy, setSortBy] = useState<'newest' | 'priceHigh' | 'priceLow' | 'rating'>(
@@ -71,6 +69,9 @@ export default function AdminPage() {
   })
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUserId(data.session?.user.id ?? null)
+    })
     fetchProducts()
   }, [])
 
@@ -101,6 +102,10 @@ export default function AdminPage() {
 
   const createProduct = async () => {
     if (!form.name.trim()) return
+    if (!userId) {
+      alert('Please sign in first to create a product.')
+      return
+    }
 
     setSaving(true)
 
@@ -113,7 +118,7 @@ export default function AdminPage() {
           category: form.category,
           price: form.price,
           image_url: form.image_url,
-          rating: form.rating,
+          seller_id: userId,
         },
       ])
       .select()
@@ -139,7 +144,6 @@ export default function AdminPage() {
         category: form.category,
         price: form.price,
         image_url: form.image_url,
-        rating: form.rating,
       })
       .eq('id', editingId)
 
@@ -224,47 +228,7 @@ export default function AdminPage() {
 
   return (
     <>
-      <Navbar cartCount={0} />
-
-      <main className="min-h-screen bg-background overflow-hidden">
-        <section className="relative overflow-hidden bg-gradient-to-br from-primary via-primary to-primary/80 text-primary-foreground">
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute -top-24 -right-24 h-80 w-80 rounded-full bg-white blur-3xl" />
-            <div className="absolute bottom-0 left-10 h-64 w-64 rounded-full bg-white/60 blur-3xl" />
-          </div>
-
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={stagger}
-            className="relative max-w-6xl mx-auto px-4 py-14 md:py-20"
-          >
-            <motion.div
-              variants={fadeUp}
-              className="inline-flex items-center gap-2 rounded-full bg-white/15 border border-white/20 px-4 py-2 text-sm mb-5 backdrop-blur"
-            >
-              <Sparkles className="w-4 h-4" />
-              Admin control center
-            </motion.div>
-
-            <motion.h1
-              variants={fadeUp}
-              className="text-4xl md:text-6xl font-bold tracking-tight mb-4"
-            >
-              Admin Dashboard
-            </motion.h1>
-
-            <motion.p
-              variants={fadeUp}
-              className="text-primary-foreground/85 max-w-2xl text-lg"
-            >
-              Create, edit, organize, and monitor your product catalog from one
-              polished dashboard.
-            </motion.p>
-          </motion.div>
-        </section>
-
-        <section className="max-w-6xl mx-auto px-4 py-10">
+      <section>
           <motion.div
             initial="hidden"
             animate="visible"
@@ -273,7 +237,7 @@ export default function AdminPage() {
           >
             <StatCard icon={Package} label="Products" value={products.length} />
             <StatCard icon={Layers} label="Categories" value={categories.length - 1} />
-            <StatCard icon={DollarSign} label="Catalog Value" value={`$${totalValue.toFixed(0)}`} />
+            <StatCard icon={Coins} label="Catalog Value" value={`${totalValue.toLocaleString()} DA`} />
             <StatCard icon={Star} label="Avg Rating" value={avgRating.toFixed(1)} />
           </motion.div>
 
@@ -281,7 +245,7 @@ export default function AdminPage() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="bg-white border border-border rounded-3xl p-6 md:p-8 mb-10 shadow-sm"
+            className="bg-card border border-border rounded-3xl p-6 md:p-8 mb-10 shadow-sm"
           >
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
@@ -364,7 +328,7 @@ export default function AdminPage() {
               </div>
 
               <div className="rounded-3xl border border-dashed border-border bg-secondary/60 p-4 flex flex-col justify-between">
-                <div className="aspect-square rounded-2xl bg-white overflow-hidden border border-border flex items-center justify-center">
+                <div className="aspect-square rounded-2xl bg-card overflow-hidden border border-border flex items-center justify-center">
                   {form.image_url ? (
                     <img
                       src={form.image_url}
@@ -410,7 +374,7 @@ export default function AdminPage() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="bg-white border border-border rounded-3xl p-5 mb-6 shadow-sm"
+            className="bg-card border border-border rounded-3xl p-5 mb-6 shadow-sm"
           >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="relative">
@@ -457,7 +421,7 @@ export default function AdminPage() {
               <p className="text-sm text-muted-foreground">Loading products...</p>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-16 bg-white border border-dashed border-border rounded-3xl">
+            <div className="text-center py-16 bg-card border border-dashed border-border rounded-3xl">
               <Package className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
               <p className="font-semibold">No products found</p>
               <p className="text-sm text-muted-foreground mt-1">
@@ -479,7 +443,7 @@ export default function AdminPage() {
                     variants={fadeUp}
                     exit={{ opacity: 0, x: -40, scale: 0.97 }}
                     whileHover={{ y: -3 }}
-                    className="bg-white border border-border rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow"
+                    className="bg-card border border-border rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-center gap-4 min-w-0">
                       <img
@@ -542,10 +506,7 @@ export default function AdminPage() {
               </AnimatePresence>
             </motion.div>
           )}
-        </section>
-      </main>
-
-      <Footer />
+      </section>
     </>
   )
 }
@@ -563,7 +524,7 @@ function StatCard({
     <motion.div
       variants={fadeUp}
       whileHover={{ y: -4 }}
-      className="bg-white border border-border rounded-3xl p-5 shadow-sm"
+      className="bg-card border border-border rounded-3xl p-5 shadow-sm"
     >
       <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4">
         <Icon className="w-5 h-5" />
