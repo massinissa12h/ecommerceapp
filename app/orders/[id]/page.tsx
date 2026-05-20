@@ -60,6 +60,7 @@ type Order = {
   total_price: number | null
   subtotal: number | null
   shipping_fee: number | null
+  shipping_method: 'center_pickup' | 'home_delivery' | null
   tax: number | null
   status: string | null
   payment_method: string | null
@@ -119,15 +120,15 @@ export default function OrderDetailPage() {
       if (sellerIds.length) {
         const [{ data: us }, { data: ps }] = await Promise.all([
           supabase.from('users').select('id, username').in('id', sellerIds),
-          supabase.from('profiles').select('id, shop_name, shop_slug').in('id', sellerIds),
+          supabase.from('shops').select('id, name, slug').in('id', sellerIds),
         ])
         ;(us ?? []).forEach((u: any) =>
           sellerMap.set(u.id, { name: u.username ?? 'Seller', slug: null }),
         )
         ;(ps ?? []).forEach((p: any) => {
           const cur = sellerMap.get(p.id) ?? { name: 'Seller', slug: null }
-          if (p.shop_name) cur.name = p.shop_name
-          cur.slug = p.shop_slug ?? null
+          if (p.name) cur.name = p.name
+          cur.slug = p.slug ?? null
           sellerMap.set(p.id, cur)
         })
       }
@@ -266,7 +267,7 @@ export default function OrderDetailPage() {
               const sellerHref = first.seller_slug
                 ? `/shop/${first.seller_slug}`
                 : first.seller_id
-                  ? `/u/${first.seller_id}`
+                  ? `/shop/${first.seller_id}`
                   : null
               return (
                 <div
@@ -372,7 +373,7 @@ export default function OrderDetailPage() {
               <div className="space-y-2 text-sm">
                 <Row label="Subtotal" value={formatPrice(order.subtotal ?? 0)} />
                 <Row
-                  label="Shipping"
+                  label={`Shipping · ${shippingMethodLabel(order.shipping_method)}`}
                   value={
                     Number(order.shipping_fee) === 0
                       ? 'Free'
@@ -409,8 +410,19 @@ export default function OrderDetailPage() {
             <div className="rounded-xl border border-border bg-card p-5">
               <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 inline-flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5" />
-                Shipping address
+                Delivery
               </h3>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold inline-flex items-center gap-1.5 mb-2">
+                {order.shipping_method === 'center_pickup' ? (
+                  <span className="rounded-md bg-secondary px-2 py-1 normal-case tracking-normal text-foreground font-medium text-xs">
+                    Pickup at delivery center
+                  </span>
+                ) : (
+                  <span className="rounded-md bg-secondary px-2 py-1 normal-case tracking-normal text-foreground font-medium text-xs">
+                    Home delivery
+                  </span>
+                )}
+              </p>
               {address.first_name || address.last_name ? (
                 <p className="text-sm font-medium flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-muted-foreground" />
@@ -418,8 +430,12 @@ export default function OrderDetailPage() {
                 </p>
               ) : null}
               <p className="text-sm mt-1.5 leading-relaxed">
-                {address.street_address}
-                {address.street_address && <br />}
+                {order.shipping_method !== 'center_pickup' && address.street_address && (
+                  <>
+                    {address.street_address}
+                    <br />
+                  </>
+                )}
                 {[address.city, address.postal_code].filter(Boolean).join(', ')}
                 {address.city || address.postal_code ? <br /> : null}
                 {address.country}
@@ -469,6 +485,11 @@ function paymentMethodLabel(m: string | null): string {
   if (m === 'card') return 'Card'
   if (m === 'bank_transfer') return 'Bank transfer'
   return '—'
+}
+
+function shippingMethodLabel(m: string | null | undefined): string {
+  if (m === 'center_pickup') return 'Pickup at center'
+  return 'Home delivery'
 }
 
 function Row({ label, value }: { label: string; value: string }) {

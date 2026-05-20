@@ -84,11 +84,16 @@ export default function PublicProfilePage() {
     const myId = sessionData.session?.user?.id ?? null
     setMe(myId)
 
-    const [{ data: userRow }, { data: profileRow }] = await Promise.all([
+    const [{ data: userRow }, { data: profileRow }, { data: shopRow }] = await Promise.all([
       supabase.from('users').select('id, username, email, created_at').eq('id', profileId).maybeSingle(),
       supabase
         .from('profiles')
-        .select('first_name, last_name, city, country, bio, avatar_url, shop_name, shop_slug, is_seller')
+        .select('first_name, last_name, city, country, bio, avatar_url')
+        .eq('id', profileId)
+        .maybeSingle(),
+      supabase
+        .from('shops')
+        .select('name, slug, is_active')
         .eq('id', profileId)
         .maybeSingle(),
     ])
@@ -110,9 +115,9 @@ export default function PublicProfilePage() {
       country: profileRow?.country ?? null,
       bio: profileRow?.bio ?? null,
       avatar_url: profileRow?.avatar_url ?? null,
-      shop_name: (profileRow as any)?.shop_name ?? null,
-      shop_slug: (profileRow as any)?.shop_slug ?? null,
-      is_seller: !!(profileRow as any)?.is_seller,
+      shop_name: shopRow?.name ?? null,
+      shop_slug: shopRow?.slug ?? null,
+      is_seller: !!shopRow?.is_active,
     })
 
     const [{ count: reviewCount }, { count: friendCount }, { count: likeCount }] =
@@ -383,7 +388,7 @@ export default function PublicProfilePage() {
               </div>
               {(profile.shop_name || profile.shop_slug) && (
                 <Link
-                  href={profile.shop_slug ? `/shop/${profile.shop_slug}` : `/products?seller=${profile.id}`}
+                  href={`/shop/${profile.shop_slug || profile.id}`}
                   className="mt-3 inline-flex items-center gap-2 rounded-full bg-brand text-brand-foreground px-3 py-1.5 text-sm font-medium hover:bg-brand/90 transition-colors"
                 >
                   Visit shop: {profile.shop_name || profile.username || 'their store'} →

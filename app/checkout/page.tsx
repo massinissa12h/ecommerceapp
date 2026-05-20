@@ -14,6 +14,9 @@ import {
   CheckCircle2,
   ArrowLeft,
   Store,
+  Truck,
+  Building2,
+  Home,
 } from 'lucide-react'
 import { useCart } from '@/app/hooks/useCart'
 import { formatPrice } from '@/lib/format'
@@ -32,9 +35,24 @@ type CartLine = {
   seller_name?: string
 }
 
-// All amounts in DZD. Free domestic shipping over 5,000 DA, otherwise 500 DA.
-const SHIPPING_THRESHOLD = 5000
-const SHIPPING_COST = 500
+// All amounts in DZD. Algerian COD shipping is normally priced per delivery
+// method: pickup at a courier office (cheaper) vs. home delivery.
+const SHIPPING_OPTIONS = {
+  center_pickup: {
+    label: 'Pickup at delivery center',
+    description: 'Collect your order from the nearest courier office',
+    price: 400,
+    icon: Building2,
+  },
+  home_delivery: {
+    label: 'Home delivery',
+    description: 'Courier brings it to your door',
+    price: 800,
+    icon: Home,
+  },
+} as const
+
+type ShippingMethod = keyof typeof SHIPPING_OPTIONS
 const TAX_RATE = 0.08
 
 export default function CheckoutPage() {
@@ -56,6 +74,9 @@ export default function CheckoutPage() {
     postal_code: '',
     country: '',
   })
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethod>(
+    'home_delivery',
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -89,12 +110,12 @@ export default function CheckoutPage() {
       if (sellerIds.length) {
         const [{ data: us }, { data: ps }] = await Promise.all([
           supabase.from('users').select('id, username').in('id', sellerIds),
-          supabase.from('profiles').select('id, shop_name').in('id', sellerIds),
+          supabase.from('shops').select('id, name').in('id', sellerIds),
         ])
         const nameMap = new Map<string, string>()
         ;(us ?? []).forEach((u: any) => nameMap.set(u.id, u.username ?? 'Seller'))
         ;(ps ?? []).forEach((p: any) => {
-          if (p.shop_name) nameMap.set(p.id, p.shop_name)
+          if (p.name) nameMap.set(p.id, p.name)
         })
         items.forEach((l) => {
           if (l.product.seller_id) {
@@ -130,8 +151,8 @@ export default function CheckoutPage() {
     (s, l) => s + (Number(l.product.price) || 0) * l.quantity,
     0,
   )
-  const shipping =
-    subtotal === 0 ? 0 : subtotal >= SHIPPING_THRESHOLD ? 0 : SHIPPING_COST
+  // Shipping is determined by the buyer's chosen method.
+  const shipping = subtotal === 0 ? 0 : SHIPPING_OPTIONS[shippingMethod].price
   const tax = subtotal * TAX_RATE
   const total = subtotal + shipping + tax
 
@@ -149,13 +170,14 @@ export default function CheckoutPage() {
       setError('Your cart is empty.')
       return
     }
-    if (
-      !address.first_name ||
-      !address.street_address ||
-      !address.city ||
-      !address.country
-    ) {
-      setError('Please fill in your shipping address.')
+    // For home delivery we need the street; for center pickup the city +
+    // country are enough (the courier office is determined by the city).
+    if (!address.first_name || !address.phone || !address.city || !address.country) {
+      setError('Please fill in your name, phone, city, and country.')
+      return
+    }
+    if (shippingMethod === 'home_delivery' && !address.street_address) {
+      setError('Home delivery needs a street address.')
       return
     }
     setPlacing(true)
@@ -175,6 +197,7 @@ export default function CheckoutPage() {
           total_price: total,
           subtotal,
           shipping_fee: shipping,
+          shipping_method: shippingMethod,
           tax,
           status: 'pending',
           payment_method: 'cod',
@@ -309,11 +332,24 @@ export default function CheckoutPage() {
                     }
                   />
                 </Field>
-                <Field label="Street address" required className="sm:col-span-2">
+                <Field
+                  label={
+                    shippingMethod === 'home_delivery'
+                      ? 'Street address'
+                      : 'Street address (optional for pickup)'
+                  }
+                  required={shippingMethod === 'home_delivery'}
+                  className="sm:col-span-2"
+                >
                   <Input
                     value={address.street_address}
                     onChange={(e) =>
                       setAddress({ ...address, street_address: e.target.value })
+                    }
+                    placeholder={
+                      shippingMethod === 'home_delivery'
+                        ? 'Where should we deliver?'
+                        : 'Not needed — courier will hold it at the office'
                     }
                   />
                 </Field>
@@ -333,6 +369,64 @@ export default function CheckoutPage() {
                     }
                   />
                 </Field>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Truck className="w-4 h-4 text-muted-foreground" />
+                <h2 className="font-semibold">Delivery method</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Choose how you want to receive your order.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {(Object.entries(SHIPPING_OPTIONS) as Array<
+                  [ShippingMethod, (typeof SHIPPING_OPTIONS)[ShippingMethod]]
+                >).map(([key, opt]) => {
+                  const selected = shippingMethod === key
+                  const Icon = opt.icon
+                  return (
+                    <label
+                      key={key}
+                      className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                        selected
+                          ? 'border-foreground bg-secondary/40 ring-2 ring-foreground/10'
+                          : 'border-border hover:border-foreground/40'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="shipping_method"
+                        className="sr-only"
+                        checked={selected}
+                        onChange={() => setShippingMethod(key)}
+                      />
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                            selected
+                              ? 'bg-foreground text-background'
+                              : 'bg-secondary text-foreground'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium text-sm">{opt.label}</p>
+                            <span className="font-semibold text-sm">
+                              {formatPrice(opt.price)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {opt.description}
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
               </div>
             </div>
 
@@ -384,7 +478,7 @@ export default function CheckoutPage() {
               <div className="space-y-2 text-sm">
                 <Row label="Subtotal" value={formatPrice(subtotal)} />
                 <Row
-                  label="Shipping"
+                  label={`Shipping · ${SHIPPING_OPTIONS[shippingMethod].label}`}
                   value={
                     shipping === 0 && subtotal > 0
                       ? 'Free'

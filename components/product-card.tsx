@@ -24,9 +24,14 @@ interface ProductCardProduct {
   is_featured?: boolean
   seller?: {
     id: string
-    shop_name: string | null
-    shop_slug: string | null
-    username: string | null
+    name?: string | null
+    slug?: string | null
+    display_name?: string
+    href?: string
+    /** Back-compat aliases for code that still passes the old shape. */
+    shop_name?: string | null
+    shop_slug?: string | null
+    username?: string | null
   } | null
 }
 
@@ -58,14 +63,21 @@ export function ProductCard({
     typeof product.stock === 'number' && product.stock > 0 && product.stock <= 5
   const outOfStock = typeof product.stock === 'number' && product.stock === 0
   const sellerName =
+    product.seller?.display_name ||
+    product.seller?.name ||
     product.seller?.shop_name ||
     product.seller?.username ||
     'Souqly'
-  const sellerHref = product.seller?.shop_slug
-    ? `/shop/${product.seller.shop_slug}`
-    : product.seller?.id
-      ? `/u/${product.seller.id}`
-      : '/products'
+  // Always link to /shop/... — the route resolves either a slug or a user id.
+  const sellerHref =
+    product.seller?.href ||
+    (product.seller?.slug
+      ? `/shop/${product.seller.slug}`
+      : product.seller?.shop_slug
+        ? `/shop/${product.seller.shop_slug}`
+        : product.seller?.id
+          ? `/shop/${product.seller.id}`
+          : '/products')
 
   return (
     <article

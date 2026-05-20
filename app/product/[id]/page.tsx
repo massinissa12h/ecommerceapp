@@ -48,10 +48,10 @@ interface Product {
 interface SellerInfo {
   id: string
   username: string | null
-  shop_name: string | null
-  shop_slug: string | null
-  shop_bio: string | null
-  avatar_url: string | null
+  name: string | null
+  slug: string | null
+  bio: string | null
+  logo_url: string | null
 }
 
 interface Review {
@@ -239,15 +239,15 @@ export default function ProductDetailsPage() {
 
       // Resolve seller info if this product belongs to one
       if (productData.seller_id) {
-        const [{ data: userRow }, { data: profileRow }] = await Promise.all([
+        const [{ data: userRow }, { data: shopRow }] = await Promise.all([
           supabase
             .from('users')
             .select('id, username')
             .eq('id', productData.seller_id)
             .maybeSingle(),
           supabase
-            .from('profiles')
-            .select('shop_name, shop_slug, shop_bio, avatar_url')
+            .from('shops')
+            .select('name, slug, bio, logo_url')
             .eq('id', productData.seller_id)
             .maybeSingle(),
         ])
@@ -255,10 +255,10 @@ export default function ProductDetailsPage() {
           setSeller({
             id: productData.seller_id,
             username: userRow.username ?? null,
-            shop_name: profileRow?.shop_name ?? null,
-            shop_slug: profileRow?.shop_slug ?? null,
-            shop_bio: profileRow?.shop_bio ?? null,
-            avatar_url: profileRow?.avatar_url ?? null,
+            name: shopRow?.name ?? null,
+            slug: shopRow?.slug ?? null,
+            bio: shopRow?.bio ?? null,
+            logo_url: shopRow?.logo_url ?? null,
           })
         }
       } else {
@@ -608,20 +608,20 @@ export default function ProductDetailsPage() {
 
               {seller && (
                 <Link
-                  href={seller.shop_slug ? `/shop/${seller.shop_slug}` : `/u/${seller.id}`}
+                  href={`/shop/${seller.slug || seller.id}`}
                   className="mb-6 inline-flex items-center gap-3 rounded-lg border border-border bg-card hover:border-foreground/20 transition-colors p-3 w-fit"
                 >
                   <div className="w-10 h-10 rounded-full bg-secondary border border-border overflow-hidden flex items-center justify-center text-sm font-semibold text-muted-foreground">
-                    {seller.avatar_url ? (
-                      <img src={seller.avatar_url} alt="" className="w-full h-full object-cover" />
+                    {seller.logo_url ? (
+                      <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      (seller.shop_name || seller.username || 'S').charAt(0).toUpperCase()
+                      (seller.name || seller.username || 'S').charAt(0).toUpperCase()
                     )}
                   </div>
                   <div className="text-left">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Sold by</p>
                     <p className="text-sm font-medium">
-                      {seller.shop_name || seller.username || 'Independent seller'}
+                      {seller.name || seller.username || 'Independent seller'}
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">

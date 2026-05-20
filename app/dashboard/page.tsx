@@ -59,7 +59,7 @@ export default function DashboardOverview() {
         { data: orderItems },
         { data: reviews },
       ] = await Promise.all([
-        supabase.from('profiles').select('shop_name').eq('id', uid).maybeSingle(),
+        supabase.from('shops').select('name').eq('id', uid).maybeSingle(),
         supabase.from('products').select('id, name, status, image_url, price').eq('seller_id', uid),
         supabase
           .from('order_items')
@@ -90,7 +90,7 @@ export default function DashboardOverview() {
           )
         : 0
 
-      setShopName(profile?.shop_name ?? '')
+      setShopName((profile as any)?.name ?? '')
       setStats({
         productCount: products?.length ?? 0,
         activeCount: (products ?? []).filter((p: any) => p.status === 'active').length,

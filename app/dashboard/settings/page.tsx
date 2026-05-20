@@ -25,7 +25,6 @@ import {
   Megaphone,
   Plane,
   Package,
-  RotateCcw,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -57,19 +56,21 @@ export default function ShopSettings() {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
   const [form, setForm] = useState({
+    // users.username
     username: '',
-    shop_name: '',
-    shop_slug: '',
-    shop_bio: '',
-    avatar_url: null as string | null,
-    shop_banner_url: null as string | null,
-    is_seller: true,
+    // shops.*
+    name: '',
+    slug: '',
+    tagline: '',
+    bio: '',
+    logo_url: null as string | null,
+    banner_url: null as string | null,
     website: '',
     contact_email: '',
     contact_phone: '',
-    shop_location: '',
+    location: '',
     socials: {} as Record<string, string>,
-    shop_announcement: '',
+    announcement: '',
     vacation_mode: false,
     vacation_message: '',
     shipping_policy: '',
@@ -86,31 +87,31 @@ export default function ShopSettings() {
       setUid(u.id)
       setEmail(u.email ?? '')
 
-      const [{ data: userRow }, { data: profile }] = await Promise.all([
+      const [{ data: userRow }, { data: shop }] = await Promise.all([
         supabase.from('users').select('username').eq('id', u.id).maybeSingle(),
-        supabase.from('profiles').select('*').eq('id', u.id).maybeSingle(),
+        supabase.from('shops').select('*').eq('id', u.id).maybeSingle(),
       ])
 
       if (cancelled) return
       setForm({
         username: userRow?.username ?? '',
-        shop_name: profile?.shop_name ?? '',
-        shop_slug: profile?.shop_slug ?? '',
-        shop_bio: profile?.shop_bio ?? '',
-        avatar_url: profile?.avatar_url ?? null,
-        shop_banner_url: profile?.shop_banner_url ?? null,
-        is_seller: profile?.is_seller ?? true,
-        website: profile?.website ?? '',
-        contact_email: profile?.contact_email ?? '',
-        contact_phone: profile?.contact_phone ?? '',
-        shop_location: profile?.shop_location ?? '',
-        socials: (profile?.socials as Record<string, string>) ?? {},
-        shop_announcement: profile?.shop_announcement ?? '',
-        vacation_mode: !!profile?.vacation_mode,
-        vacation_message: profile?.vacation_message ?? '',
-        shipping_policy: profile?.shipping_policy ?? '',
-        return_policy: profile?.return_policy ?? '',
-        low_stock_threshold: profile?.low_stock_threshold ?? 5,
+        name: shop?.name ?? '',
+        slug: shop?.slug ?? '',
+        tagline: shop?.tagline ?? '',
+        bio: shop?.bio ?? '',
+        logo_url: shop?.logo_url ?? null,
+        banner_url: shop?.banner_url ?? null,
+        website: shop?.website ?? '',
+        contact_email: shop?.contact_email ?? '',
+        contact_phone: shop?.contact_phone ?? '',
+        location: shop?.location ?? '',
+        socials: (shop?.socials as Record<string, string>) ?? {},
+        announcement: shop?.announcement ?? '',
+        vacation_mode: !!shop?.vacation_mode,
+        vacation_message: shop?.vacation_message ?? '',
+        shipping_policy: shop?.shipping_policy ?? '',
+        return_policy: shop?.return_policy ?? '',
+        low_stock_threshold: shop?.low_stock_threshold ?? 5,
       })
       setLoading(false)
     })()
@@ -136,39 +137,46 @@ export default function ShopSettings() {
       }
     }
 
-    // Strip empty social values so the socials JSON stays clean
     const cleanSocials: Record<string, string> = {}
     Object.entries(form.socials).forEach(([k, v]) => {
       if (v && v.trim()) cleanSocials[k] = v.trim()
     })
 
-    const profilePayload = {
+    const shopPayload = {
       id: uid,
-      shop_name: form.shop_name.trim() || null,
-      shop_slug: form.shop_slug.trim() ? slugify(form.shop_slug) : null,
-      shop_bio: form.shop_bio.trim() || null,
-      avatar_url: form.avatar_url,
-      shop_banner_url: form.shop_banner_url,
-      is_seller: form.is_seller,
+      name: form.name.trim() || null,
+      slug: form.slug.trim() ? slugify(form.slug) : null,
+      tagline: form.tagline.trim() || null,
+      bio: form.bio.trim() || null,
+      logo_url: form.logo_url,
+      banner_url: form.banner_url,
       website: form.website.trim() || null,
       contact_email: form.contact_email.trim() || null,
       contact_phone: form.contact_phone.trim() || null,
-      shop_location: form.shop_location.trim() || null,
+      location: form.location.trim() || null,
       socials: cleanSocials,
-      shop_announcement: form.shop_announcement.trim() || null,
+      announcement: form.announcement.trim() || null,
       vacation_mode: form.vacation_mode,
       vacation_message: form.vacation_message.trim() || null,
       shipping_policy: form.shipping_policy.trim() || null,
       return_policy: form.return_policy.trim() || null,
       low_stock_threshold: Math.max(0, Number(form.low_stock_threshold) || 0),
+      is_active: true,
     }
+
     const { error } = await supabase
-      .from('profiles')
-      .upsert(profilePayload, { onConflict: 'id' })
+      .from('shops')
+      .upsert(shopPayload, { onConflict: 'id' })
+
     if (error) {
-      setMsg({ kind: 'err', text: error.message })
+      setMsg({
+        kind: 'err',
+        text: error.message.includes('duplicate')
+          ? 'That shop URL is already taken. Try another.'
+          : error.message,
+      })
     } else {
-      setMsg({ kind: 'ok', text: 'Shop settings saved.' })
+      setMsg({ kind: 'ok', text: 'Shop saved.' })
     }
     setSaving(false)
   }
@@ -181,11 +189,7 @@ export default function ShopSettings() {
     )
   }
 
-  const shopUrl = form.shop_slug
-    ? `/shop/${slugify(form.shop_slug)}`
-    : uid
-      ? `/u/${uid}`
-      : '/'
+  const shopUrl = `/shop/${form.slug ? slugify(form.slug) : uid ?? ''}`
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -213,48 +217,55 @@ export default function ShopSettings() {
         <div className="grid sm:grid-cols-2 gap-4">
           <Field label="Shop name">
             <Input
-              value={form.shop_name}
-              onChange={(e) => setForm({ ...form, shop_name: e.target.value })}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. North Studio"
             />
           </Field>
           <Field
             label="Shop URL"
-            hint={
-              form.shop_slug ? `souqly.com/shop/${slugify(form.shop_slug)}` : 'optional'
-            }
+            hint={form.slug ? `souqly.com/shop/${slugify(form.slug)}` : 'optional'}
           >
             <Input
-              value={form.shop_slug}
-              onChange={(e) => setForm({ ...form, shop_slug: e.target.value })}
+              value={form.slug}
+              onChange={(e) => setForm({ ...form, slug: e.target.value })}
               placeholder="my-shop"
             />
           </Field>
         </div>
 
+        <Field label="Tagline" hint="A short one-liner shown under your name">
+          <Input
+            value={form.tagline}
+            onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+            placeholder="Handmade pottery from Algiers"
+            maxLength={120}
+          />
+        </Field>
+
         <Field label="About your shop">
           <Textarea
-            value={form.shop_bio}
+            value={form.bio}
             rows={4}
-            onChange={(e) => setForm({ ...form, shop_bio: e.target.value })}
+            onChange={(e) => setForm({ ...form, bio: e.target.value })}
             placeholder="Tell buyers what you make and what you stand for."
-            maxLength={500}
+            maxLength={600}
           />
           <p className="text-[11px] text-muted-foreground mt-1">
-            {form.shop_bio.length}/500
+            {form.bio.length}/600
           </p>
         </Field>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-6">
         <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="font-semibold mb-3">Shop avatar</h2>
+          <h2 className="font-semibold mb-3">Shop logo</h2>
           {uid && (
             <ImageUploader
-              value={form.avatar_url}
-              onChange={(url) => setForm({ ...form, avatar_url: url })}
+              value={form.logo_url}
+              onChange={(url) => setForm({ ...form, logo_url: url })}
               userId={uid}
-              folder="avatar"
+              folder="shop-logo"
             />
           )}
         </div>
@@ -262,10 +273,10 @@ export default function ShopSettings() {
           <h2 className="font-semibold mb-3">Shop banner</h2>
           {uid && (
             <ImageUploader
-              value={form.shop_banner_url}
-              onChange={(url) => setForm({ ...form, shop_banner_url: url })}
+              value={form.banner_url}
+              onChange={(url) => setForm({ ...form, banner_url: url })}
               userId={uid}
-              folder="banner"
+              folder="shop-banner"
             />
           )}
         </div>
@@ -288,28 +299,22 @@ export default function ShopSettings() {
             <Input
               type="email"
               value={form.contact_email}
-              onChange={(e) =>
-                setForm({ ...form, contact_email: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
               placeholder="hello@your-shop.com"
             />
           </Field>
           <Field label="Phone" icon={Phone}>
             <Input
               value={form.contact_phone}
-              onChange={(e) =>
-                setForm({ ...form, contact_phone: e.target.value })
-              }
-              placeholder="+1 ..."
+              onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
+              placeholder="+213 ..."
             />
           </Field>
           <Field label="Location" icon={MapPin}>
             <Input
-              value={form.shop_location}
-              onChange={(e) =>
-                setForm({ ...form, shop_location: e.target.value })
-              }
-              placeholder="Brooklyn, NY"
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+              placeholder="Algiers, Algeria"
             />
           </Field>
         </div>
@@ -353,14 +358,12 @@ export default function ShopSettings() {
         <Textarea
           rows={3}
           maxLength={280}
-          value={form.shop_announcement}
-          onChange={(e) =>
-            setForm({ ...form, shop_announcement: e.target.value })
-          }
+          value={form.announcement}
+          onChange={(e) => setForm({ ...form, announcement: e.target.value })}
           placeholder='e.g. "Free shipping on orders over 5,000 DA this weekend!"'
         />
         <p className="text-[11px] text-muted-foreground">
-          {form.shop_announcement.length}/280
+          {form.announcement.length}/280
         </p>
       </div>
 
@@ -410,9 +413,7 @@ export default function ShopSettings() {
           <Textarea
             rows={3}
             value={form.shipping_policy}
-            onChange={(e) =>
-              setForm({ ...form, shipping_policy: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, shipping_policy: e.target.value })}
             placeholder="e.g. We ship within 2 business days via Yalidine."
           />
         </Field>
@@ -420,9 +421,7 @@ export default function ShopSettings() {
           <Textarea
             rows={3}
             value={form.return_policy}
-            onChange={(e) =>
-              setForm({ ...form, return_policy: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, return_policy: e.target.value })}
             placeholder="e.g. Returns accepted within 7 days for unused items."
           />
         </Field>
@@ -435,10 +434,7 @@ export default function ShopSettings() {
             min={0}
             value={form.low_stock_threshold}
             onChange={(e) =>
-              setForm({
-                ...form,
-                low_stock_threshold: Number(e.target.value),
-              })
+              setForm({ ...form, low_stock_threshold: Number(e.target.value) })
             }
           />
         </Field>
@@ -462,11 +458,7 @@ export default function ShopSettings() {
 
       <div className="flex items-center justify-between gap-3 sticky bottom-4 rounded-xl border border-border bg-card p-3 shadow-elevated">
         {msg ? (
-          <p
-            className={`text-sm ${
-              msg.kind === 'ok' ? 'text-success' : 'text-destructive'
-            }`}
-          >
+          <p className={`text-sm ${msg.kind === 'ok' ? 'text-success' : 'text-destructive'}`}>
             {msg.text}
           </p>
         ) : (

@@ -100,11 +100,11 @@ export default function BuyerOrdersPage() {
       if (sellerIds.length) {
         const [{ data: us }, { data: ps }] = await Promise.all([
           supabase.from('users').select('id, username').in('id', sellerIds),
-          supabase.from('profiles').select('id, shop_name').in('id', sellerIds),
+          supabase.from('shops').select('id, name').in('id', sellerIds),
         ])
         ;(us ?? []).forEach((u: any) => nameMap.set(u.id, u.username ?? 'Seller'))
         ;(ps ?? []).forEach((p: any) => {
-          if (p.shop_name) nameMap.set(p.id, p.shop_name)
+          if (p.name) nameMap.set(p.id, p.name)
         })
       }
 

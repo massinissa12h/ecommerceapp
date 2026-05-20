@@ -1,4 +1,5 @@
-// Centralized product/seller types used across the marketplace.
+// Centralized product/order types used across the marketplace.
+import type { ShopSummary } from '@/lib/sellers'
 
 export type ProductStatus = 'active' | 'draft' | 'archived'
 
@@ -19,24 +20,27 @@ export interface DbProduct {
 }
 
 // What the UI normally consumes. Adds derived fields like rating + a
-// guaranteed image string for <Image>.
+// guaranteed image string for <Image>, and a compact shop summary for
+// "Sold by ..." cards.
 export interface Product extends DbProduct {
   rating: number
   review_count?: number
   image: string
-  seller?: SellerSummary | null
+  seller?: ShopSummary | null
 }
 
-export interface SellerSummary {
-  id: string
-  username: string | null
-  shop_name: string | null
-  shop_slug: string | null
-  avatar_url: string | null
-  is_seller: boolean
-}
+// Re-export for convenience so existing imports of `SellerSummary` keep
+// working (it's now an alias for `ShopSummary`).
+export type SellerSummary = ShopSummary
 
-export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled'
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'paid'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+
 export type FulfillmentStatus =
   | 'pending'
   | 'processing'

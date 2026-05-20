@@ -7,6 +7,7 @@ import { Navbar } from '@/components/navbar'
 import { Footer } from '@/components/footer'
 import { ProductCard } from '@/components/product-card'
 import { supabase } from '@/lib/supabaseClient'
+import { fetchShopBySlug, type ShopFull } from '@/lib/sellers'
 import { resolveAllSocials, normalizeWebsite } from '@/lib/socials'
 import {
   Loader2,
@@ -31,32 +32,11 @@ import { Button } from '@/components/ui/button'
 import { useCart } from '@/app/hooks/useCart'
 import { useWishlist } from '@/app/hooks/useWishlist'
 
-type Seller = {
-  id: string
-  shop_name: string | null
-  shop_slug: string | null
-  shop_bio: string | null
-  shop_banner_url: string | null
-  avatar_url: string | null
-  username: string | null
-  website: string | null
-  contact_email: string | null
-  contact_phone: string | null
-  shop_location: string | null
-  socials: Record<string, string> | null
-  created_at: string | null
-  shop_announcement: string | null
-  vacation_mode: boolean
-  vacation_message: string | null
-  shipping_policy: string | null
-  return_policy: string | null
-}
-
 export default function PublicShopPage() {
   const params = useParams<{ slug: string }>()
   const { cartCount, addToCart } = useCart()
   const { wishlistIds, toggleWishlist } = useWishlist()
-  const [seller, setSeller] = useState<Seller | null>(null)
+  const [shop, setShop] = useState<ShopFull | null>(null)
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({ products: 0, avgRating: 0, sold: 0 })
@@ -66,48 +46,30 @@ export default function PublicShopPage() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('shop_slug', params.slug)
-        .maybeSingle()
-
-      if (!profile) {
-        setLoading(false)
+      const s = await fetchShopBySlug(params.slug)
+      if (!s) {
+        if (!cancelled) setLoading(false)
         return
       }
-
-      const { data: u } = await supabase
-        .from('users')
-        .select('username, created_at')
-        .eq('id', profile.id)
-        .maybeSingle()
-
-      const sellerData: Seller = {
-        ...profile,
-        username: u?.username ?? null,
-        created_at: u?.created_at ?? null,
-        socials: (profile.socials as Record<string, string>) ?? null,
-        vacation_mode: !!profile.vacation_mode,
-      }
       if (cancelled) return
-      setSeller(sellerData)
+      setShop(s)
 
       const [{ data: ps }, { data: revs }, { data: oi }] = await Promise.all([
         supabase
           .from('products')
           .select('*')
-          .eq('seller_id', profile.id)
+          .eq('seller_id', s.id)
           .eq('status', 'active')
+          .order('is_featured', { ascending: false })
           .order('created_at', { ascending: false }),
         supabase
           .from('reviews')
           .select('rating, product_id, products!inner(seller_id)')
-          .eq('products.seller_id', profile.id),
+          .eq('products.seller_id', s.id),
         supabase
           .from('order_items')
           .select('quantity')
-          .eq('seller_id', profile.id),
+          .eq('seller_id', s.id),
       ])
 
       const reviewMap = new Map<string, { total: number; count: number }>()
@@ -119,17 +81,19 @@ export default function PublicShopPage() {
       })
 
       const enriched = (ps ?? []).map((p: any) => {
-        const s = reviewMap.get(p.id)
+        const stat = reviewMap.get(p.id)
         return {
           ...p,
           image: p.image_url ?? '',
-          rating: s ? Number((s.total / s.count).toFixed(1)) : 0,
-          review_count: s?.count ?? 0,
+          rating: stat ? Number((stat.total / stat.count).toFixed(1)) : 0,
+          review_count: stat?.count ?? 0,
+          // Pass the shop summary so the card "Sold by ..." link works
           seller: {
-            id: profile.id,
-            shop_name: profile.shop_name,
-            shop_slug: profile.shop_slug,
-            username: u?.username ?? null,
+            id: s.id,
+            name: s.name,
+            slug: s.slug,
+            display_name: s.display_name,
+            href: s.href,
           },
         }
       })
@@ -137,10 +101,13 @@ export default function PublicShopPage() {
       const ratings = (revs ?? []) as any[]
       const avgRating = ratings.length
         ? Number(
-            (ratings.reduce((s, r) => s + r.rating, 0) / ratings.length).toFixed(1),
+            (ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1),
           )
         : 0
-      const sold = (oi ?? []).reduce((s: number, r: any) => s + (r.quantity ?? 0), 0)
+      const sold = (oi ?? []).reduce(
+        (sum: number, r: any) => sum + (r.quantity ?? 0),
+        0,
+      )
 
       if (cancelled) return
       setProducts(enriched)
@@ -164,7 +131,7 @@ export default function PublicShopPage() {
     )
   }
 
-  if (!seller) {
+  if (!shop) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Navbar cartCount={cartCount} />
@@ -184,10 +151,10 @@ export default function PublicShopPage() {
     )
   }
 
-  const website = normalizeWebsite(seller.website)
-  const socials = resolveAllSocials(seller.socials)
-  const joined = seller.created_at
-    ? new Date(seller.created_at).toLocaleDateString(undefined, {
+  const website = normalizeWebsite(shop.website)
+  const socials = resolveAllSocials(shop.socials)
+  const joined = shop.created_at
+    ? new Date(shop.created_at).toLocaleDateString(undefined, {
         month: 'short',
         year: 'numeric',
       })
@@ -210,12 +177,8 @@ export default function PublicShopPage() {
         {/* HERO / BANNER */}
         <section className="relative border-b border-border bg-card">
           <div className="h-56 w-full overflow-hidden bg-secondary relative">
-            {seller.shop_banner_url ? (
-              <img
-                src={seller.shop_banner_url}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+            {shop.banner_url ? (
+              <img src={shop.banner_url} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-grid opacity-40" />
             )}
@@ -224,14 +187,10 @@ export default function PublicShopPage() {
           <div className="max-w-7xl mx-auto px-4">
             <div className="-mt-16 flex flex-col sm:flex-row sm:items-end gap-4 pb-8">
               <div className="w-28 h-28 rounded-2xl bg-card overflow-hidden border-4 border-card shadow-elevated-lg flex items-center justify-center text-3xl font-semibold text-muted-foreground">
-                {seller.avatar_url ? (
-                  <img
-                    src={seller.avatar_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                {shop.logo_url ? (
+                  <img src={shop.logo_url} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  (seller.shop_name || seller.username || 'S').charAt(0).toUpperCase()
+                  shop.display_name.charAt(0).toUpperCase()
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -247,12 +206,15 @@ export default function PublicShopPage() {
                   )}
                 </p>
                 <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-                  {seller.shop_name || seller.username || 'Independent seller'}
+                  {shop.display_name}
                 </h1>
-                {seller.shop_location && (
+                {shop.tagline && (
+                  <p className="text-sm text-foreground/70 mt-1">{shop.tagline}</p>
+                )}
+                {shop.location && (
                   <p className="text-sm text-muted-foreground mt-1 inline-flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5" />
-                    {seller.shop_location}
+                    {shop.location}
                   </p>
                 )}
               </div>
@@ -264,7 +226,7 @@ export default function PublicShopPage() {
                   onClick={() => {
                     if (navigator.share) {
                       navigator.share({
-                        title: seller.shop_name ?? 'Shop',
+                        title: shop.display_name,
                         url: window.location.href,
                       })
                     } else {
@@ -275,8 +237,8 @@ export default function PublicShopPage() {
                   <Share2 className="w-3.5 h-3.5 mr-1.5" />
                   Share shop
                 </Button>
-                {seller.contact_email && (
-                  <a href={`mailto:${seller.contact_email}`}>
+                {shop.contact_email && (
+                  <a href={`mailto:${shop.contact_email}`}>
                     <Button size="sm">
                       <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
                       Contact
@@ -286,7 +248,6 @@ export default function PublicShopPage() {
               </div>
             </div>
 
-            {/* Stats strip */}
             <div className="grid grid-cols-3 gap-4 pb-6">
               <ShopStat icon={Package} label="Products" value={stats.products} />
               <ShopStat
@@ -299,28 +260,28 @@ export default function PublicShopPage() {
           </div>
         </section>
 
-        {/* Announcement + vacation banners */}
-        {(seller.shop_announcement || seller.vacation_mode) && (
+        {/* Banners */}
+        {(shop.announcement || shop.vacation_mode) && (
           <section className="max-w-7xl mx-auto px-4 pt-6 space-y-3">
-            {seller.vacation_mode && (
-              <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning-foreground p-4 flex items-start gap-3">
+            {shop.vacation_mode && (
+              <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 flex items-start gap-3">
                 <Plane className="w-5 h-5 text-warning shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold text-foreground">
                     This shop is on vacation
                   </p>
                   <p className="text-sm text-foreground/80 mt-0.5">
-                    {seller.vacation_message ||
+                    {shop.vacation_message ||
                       'The seller is currently away. New orders are paused — please check back soon.'}
                   </p>
                 </div>
               </div>
             )}
-            {seller.shop_announcement && (
+            {shop.announcement && (
               <div className="rounded-xl border border-brand/30 bg-brand-soft text-foreground p-4 flex items-start gap-3">
                 <Megaphone className="w-5 h-5 text-brand shrink-0 mt-0.5" />
                 <p className="text-sm leading-relaxed whitespace-pre-line">
-                  {seller.shop_announcement}
+                  {shop.announcement}
                 </p>
               </div>
             )}
@@ -328,23 +289,22 @@ export default function PublicShopPage() {
         )}
 
         <section className="max-w-7xl mx-auto px-4 py-10 grid lg:grid-cols-[300px_1fr] gap-8">
-          {/* SIDEBAR — About / Contacts / Socials */}
           <aside className="space-y-5 lg:sticky lg:top-20 lg:self-start">
-            {seller.shop_bio && (
+            {shop.bio && (
               <div className="rounded-xl border border-border bg-card p-5">
                 <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">
                   About
                 </h3>
                 <p className="text-sm leading-relaxed whitespace-pre-line">
-                  {seller.shop_bio}
+                  {shop.bio}
                 </p>
               </div>
             )}
 
             {(website ||
-              seller.contact_email ||
-              seller.contact_phone ||
-              seller.shop_location) && (
+              shop.contact_email ||
+              shop.contact_phone ||
+              shop.location) && (
               <div className="rounded-xl border border-border bg-card p-5">
                 <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">
                   Contact
@@ -362,29 +322,29 @@ export default function PublicShopPage() {
                       </a>
                     </ContactRow>
                   )}
-                  {seller.contact_email && (
+                  {shop.contact_email && (
                     <ContactRow icon={Mail}>
                       <a
-                        href={`mailto:${seller.contact_email}`}
+                        href={`mailto:${shop.contact_email}`}
                         className="hover:text-brand truncate"
                       >
-                        {seller.contact_email}
+                        {shop.contact_email}
                       </a>
                     </ContactRow>
                   )}
-                  {seller.contact_phone && (
+                  {shop.contact_phone && (
                     <ContactRow icon={Phone}>
                       <a
-                        href={`tel:${seller.contact_phone}`}
+                        href={`tel:${shop.contact_phone}`}
                         className="hover:text-brand"
                       >
-                        {seller.contact_phone}
+                        {shop.contact_phone}
                       </a>
                     </ContactRow>
                   )}
-                  {seller.shop_location && (
+                  {shop.location && (
                     <ContactRow icon={MapPin}>
-                      <span>{seller.shop_location}</span>
+                      <span>{shop.location}</span>
                     </ContactRow>
                   )}
                 </ul>
@@ -413,31 +373,30 @@ export default function PublicShopPage() {
               </div>
             )}
 
-            {seller.shipping_policy && (
+            {shop.shipping_policy && (
               <div className="rounded-xl border border-border bg-card p-5">
                 <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 inline-flex items-center gap-1.5">
                   <Truck className="w-3.5 h-3.5" />
                   Shipping
                 </h3>
                 <p className="text-sm leading-relaxed whitespace-pre-line">
-                  {seller.shipping_policy}
+                  {shop.shipping_policy}
                 </p>
               </div>
             )}
-            {seller.return_policy && (
+            {shop.return_policy && (
               <div className="rounded-xl border border-border bg-card p-5">
                 <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-2 inline-flex items-center gap-1.5">
                   <RotateCcw className="w-3.5 h-3.5" />
                   Returns
                 </h3>
                 <p className="text-sm leading-relaxed whitespace-pre-line">
-                  {seller.return_policy}
+                  {shop.return_policy}
                 </p>
               </div>
             )}
           </aside>
 
-          {/* PRODUCTS */}
           <div className="min-w-0">
             <div className="flex items-center justify-between mb-5 gap-3">
               <h2 className="text-xl font-semibold tracking-tight">
@@ -528,13 +487,7 @@ function ShopStat({
   )
 }
 
-function ContactRow({
-  icon: Icon,
-  children,
-}: {
-  icon: any
-  children: React.ReactNode
-}) {
+function ContactRow({ icon: Icon, children }: { icon: any; children: React.ReactNode }) {
   return (
     <li className="flex items-center gap-2 min-w-0">
       <Icon className="w-4 h-4 text-muted-foreground shrink-0" />

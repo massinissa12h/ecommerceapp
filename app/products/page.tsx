@@ -222,14 +222,14 @@ export default function ProductsPage() {
             {sellerPreview ? (
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-full bg-secondary overflow-hidden border border-border flex items-center justify-center text-base font-semibold text-muted-foreground">
-                  {sellerPreview.avatar_url ? (
+                  {sellerPreview.logo_url ? (
                     <img
-                      src={sellerPreview.avatar_url}
+                      src={sellerPreview.logo_url}
                       alt=""
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    (sellerPreview.shop_name || sellerPreview.username || 'S').charAt(0).toUpperCase()
+                    sellerPreview.display_name.charAt(0).toUpperCase()
                   )}
                 </div>
                 <div>
@@ -237,7 +237,7 @@ export default function ProductsPage() {
                     <Store className="w-3.5 h-3.5" /> Shop
                   </p>
                   <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
-                    {sellerPreview.shop_name || sellerPreview.username || 'Independent seller'}
+                    {sellerPreview.display_name}
                   </h1>
                 </div>
               </div>

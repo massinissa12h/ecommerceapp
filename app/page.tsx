@@ -324,19 +324,19 @@ export default function Home() {
               {topSellers.map((s) => (
                 <Link
                   key={s.id}
-                  href={s.shop_slug ? `/shop/${s.shop_slug}` : `/u/${s.id}`}
+                  href={s.href}
                   className="group rounded-xl border border-border bg-card p-5 hover:border-foreground/20 hover:shadow-elevated transition-all flex items-center gap-3"
                 >
                   <div className="w-12 h-12 rounded-full overflow-hidden bg-secondary border border-border flex items-center justify-center text-sm font-semibold text-muted-foreground">
-                    {s.avatar_url ? (
-                      <img src={s.avatar_url} alt="" className="w-full h-full object-cover" />
+                    {s.logo_url ? (
+                      <img src={s.logo_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      (s.shop_name || s.username || 'S').charAt(0).toUpperCase()
+                      s.display_name.charAt(0).toUpperCase()
                     )}
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium truncate group-hover:text-brand transition-colors">
-                      {s.shop_name || s.username || 'Seller'}
+                      {s.display_name}
                     </p>
                     <p className="text-xs text-muted-foreground inline-flex items-center gap-1">
                       <Package className="w-3 h-3" />

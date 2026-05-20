@@ -206,6 +206,12 @@ export default function OrdersPage() {
                     Buyer: {r.buyer?.username || r.buyer?.email || 'Anonymous'} ·{' '}
                     {r.orders?.created_at?.slice(0, 10)}
                   </p>
+                  <Link
+                    href={`/dashboard/orders/${r.order_id}`}
+                    className="text-xs font-medium text-brand hover:underline inline-flex items-center gap-1 mt-1"
+                  >
+                    Open details →
+                  </Link>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <div className="flex items-center gap-2">
