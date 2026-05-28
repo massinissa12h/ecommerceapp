@@ -11,7 +11,12 @@ import {
   XCircle,
   PackageCheck,
   Sparkles,
+  Phone,
+  Copy,
+  Check,
+  Eye,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 type Item = {
   id: string
@@ -27,6 +32,8 @@ type Item = {
     created_at: string | null
     status: string | null
     user_id: string | null
+    shipping_address: any
+    shipping_method: 'center_pickup' | 'home_delivery' | null
   } | null
   buyer?: { username: string | null; email: string | null } | null
 }
@@ -44,6 +51,13 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | Item['fulfillment_status']>('all')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null)
+
+  const copyPhone = (rowId: string, phone: string) => {
+    navigator.clipboard?.writeText(phone)
+    setCopiedPhoneId(rowId)
+    setTimeout(() => setCopiedPhoneId(null), 1500)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -55,7 +69,7 @@ export default function AdminOrdersPage() {
         .select(
           `id, order_id, product_id, quantity, price, fulfillment_status, tracking_number,
            products ( id, name, image_url ),
-           orders ( id, created_at, status, user_id )`,
+           orders ( id, created_at, status, user_id, shipping_address, shipping_method )`,
         )
         .is('seller_id', null)
         .order('id', { ascending: false })
@@ -230,8 +244,52 @@ export default function AdminOrdersPage() {
                     Buyer: {r.buyer?.username || r.buyer?.email || 'Anonymous'} ·{' '}
                     {r.orders?.created_at?.slice(0, 10)}
                   </p>
+                  {(() => {
+                    const phone = r.orders?.shipping_address?.phone as
+                      | string
+                      | undefined
+                    if (!phone) return null
+                    return (
+                      <div className="mt-2 inline-flex items-center gap-1.5 text-xs">
+                        <Phone className="w-3 h-3 text-muted-foreground" />
+                        <span className="font-medium text-foreground">{phone}</span>
+                        <a
+                          href={`tel:${phone}`}
+                          className="ml-1 inline-flex items-center gap-1 rounded-md border border-border bg-card hover:border-foreground/30 px-2 py-0.5 font-medium hover:text-brand"
+                          title="Call buyer"
+                        >
+                          <Phone className="w-3 h-3" />
+                          Call
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => copyPhone(r.id, phone)}
+                          className="inline-flex items-center gap-1 rounded-md border border-border bg-card hover:border-foreground/30 px-2 py-0.5 font-medium hover:text-foreground"
+                          title="Copy phone number"
+                        >
+                          {copiedPhoneId === r.id ? (
+                            <>
+                              <Check className="w-3 h-3 text-success" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              Copy
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )
+                  })()}
                 </div>
                 <div className="flex flex-col items-end gap-2">
+                  <Link href={`/admin/orders/${r.order_id}`}>
+                    <Button size="sm" className="h-8">
+                      <Eye className="w-3.5 h-3.5 mr-1.5" />
+                      View order
+                    </Button>
+                  </Link>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={r.fulfillment_status} />
                     <select

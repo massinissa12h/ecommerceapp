@@ -44,7 +44,6 @@ type Order = {
   total_price: number | null
   subtotal: number | null
   shipping_fee: number | null
-  tax: number | null
   status: string | null
   payment_method: string | null
   created_at: string | null
@@ -75,7 +74,7 @@ export default function BuyerOrdersPage() {
       const { data: orderRows } = await supabase
         .from('orders')
         .select(
-          'id, total_price, subtotal, shipping_fee, tax, status, payment_method, created_at, delivered_at, cancelled_at',
+          'id, total_price, subtotal, shipping_fee, status, payment_method, created_at, delivered_at, cancelled_at',
         )
         .eq('user_id', uid)
         .order('created_at', { ascending: false })
@@ -335,7 +334,6 @@ function OrderCard({ order }: { order: Order }) {
             <>
               {formatPrice(order.subtotal)} + {formatPrice(order.shipping_fee ?? 0)}{' '}
               shipping
-              {Number(order.tax ?? 0) > 0 && <> + {formatPrice(order.tax ?? 0)} tax</>}
             </>
           )}
         </span>

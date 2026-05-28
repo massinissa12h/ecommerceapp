@@ -61,7 +61,6 @@ type Order = {
   subtotal: number | null
   shipping_fee: number | null
   shipping_method: 'center_pickup' | 'home_delivery' | null
-  tax: number | null
   status: string | null
   payment_method: string | null
   shipping_address: any
@@ -380,7 +379,6 @@ export default function OrderDetailPage() {
                       : formatPrice(order.shipping_fee ?? 0)
                   }
                 />
-                <Row label="Tax" value={formatPrice(order.tax ?? 0)} />
               </div>
               <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
                 <span className="font-medium">Total</span>

@@ -40,7 +40,6 @@ interface CartItem {
 // free shipping on orders >= 5,000 DA, otherwise a flat 500 DA delivery fee.
 const SHIPPING_THRESHOLD = 5000
 const SHIPPING_COST = 500
-const TAX_RATE = 0.08
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -167,8 +166,7 @@ export default function CartPage() {
   const shipping =
     subtotal === 0 ? 0 : subtotal >= SHIPPING_THRESHOLD ? 0 : SHIPPING_COST
 
-  const tax = subtotal * TAX_RATE
-  const total = subtotal + shipping + tax
+  const total = subtotal + shipping
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0)
 
   const freeShippingProgress =
@@ -474,10 +472,6 @@ export default function CartPage() {
                         </span>
                       </div>
 
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Tax (8%)</span>
-                        <span className="font-medium">{formatPrice(tax)}</span>
-                      </div>
                     </div>
 
                     <div className="flex justify-between text-2xl font-bold text-foreground mb-6">

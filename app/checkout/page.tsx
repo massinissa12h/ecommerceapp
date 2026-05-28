@@ -53,7 +53,6 @@ const SHIPPING_OPTIONS = {
 } as const
 
 type ShippingMethod = keyof typeof SHIPPING_OPTIONS
-const TAX_RATE = 0.08
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -153,8 +152,7 @@ export default function CheckoutPage() {
   )
   // Shipping is determined by the buyer's chosen method.
   const shipping = subtotal === 0 ? 0 : SHIPPING_OPTIONS[shippingMethod].price
-  const tax = subtotal * TAX_RATE
-  const total = subtotal + shipping + tax
+  const total = subtotal + shipping
 
   // Group lines by seller for display
   const groups = lines.reduce<Record<string, CartLine[]>>((acc, l) => {
@@ -198,7 +196,6 @@ export default function CheckoutPage() {
           subtotal,
           shipping_fee: shipping,
           shipping_method: shippingMethod,
-          tax,
           status: 'pending',
           payment_method: 'cod',
           shipping_address: address,
@@ -485,7 +482,6 @@ export default function CheckoutPage() {
                       : formatPrice(shipping)
                   }
                 />
-                <Row label="Tax (8%)" value={formatPrice(tax)} />
               </div>
               <div className="border-t border-border mt-4 pt-4 flex items-center justify-between">
                 <span className="font-medium">Total</span>

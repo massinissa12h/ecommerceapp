@@ -24,6 +24,8 @@ import {
   Copy,
   Clock,
   ExternalLink,
+  Check,
+  Sparkles,
 } from 'lucide-react'
 
 type FulfillmentStatus =
@@ -49,7 +51,13 @@ type Item = {
   fulfillment_status: FulfillmentStatus
   tracking_number: string | null
   shipped_at: string | null
-  product: { id: string; name: string; image_url: string | null; stock: number } | null
+  seller_id: string | null
+  product: {
+    id: string
+    name: string
+    image_url: string | null
+    stock: number
+  } | null
 }
 
 type Order = {
@@ -64,8 +72,6 @@ type Order = {
   shipping_address: any
   notes: string | null
   created_at: string | null
-  delivered_at: string | null
-  cancelled_at: string | null
 }
 
 type Buyer = {
@@ -74,7 +80,7 @@ type Buyer = {
   email: string | null
 }
 
-export default function SellerOrderDetailPage() {
+export default function AdminOrderDetailPage() {
   const params = useParams<{ id: string }>()
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -82,15 +88,13 @@ export default function SellerOrderDetailPage() {
   const [items, setItems] = useState<Item[]>([])
   const [buyer, setBuyer] = useState<Buyer | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copiedId, setCopiedId] = useState(false)
+  const [copiedPhone, setCopiedPhone] = useState(false)
+  const [copiedAddress, setCopiedAddress] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const { data: session } = await supabase.auth.getSession()
-      const uid = session.session?.user.id
-      if (!uid) return
-
       const { data: orderRow } = await supabase
         .from('orders')
         .select('*')
@@ -105,18 +109,18 @@ export default function SellerOrderDetailPage() {
         return
       }
 
-      // Only the seller's items on this order
+      // Admin view: only platform-owned items (seller_id IS NULL). The admin
+      // dashboard is for orders Souqly fulfills directly.
       const { data: lineItems } = await supabase
         .from('order_items')
         .select(
-          `id, product_id, quantity, price, fulfillment_status, tracking_number, shipped_at,
+          `id, product_id, quantity, price, fulfillment_status, tracking_number, shipped_at, seller_id,
            product:products ( id, name, image_url, stock )`,
         )
         .eq('order_id', orderRow.id)
-        .eq('seller_id', uid)
+        .is('seller_id', null)
 
       if (!lineItems || lineItems.length === 0) {
-        // Either the order has no items for this seller, or RLS blocked it.
         if (!cancelled) {
           setNotFound(true)
           setLoading(false)
@@ -124,7 +128,6 @@ export default function SellerOrderDetailPage() {
         return
       }
 
-      // Buyer profile (RLS lets us see public users/profiles)
       let buyerRow: Buyer | null = null
       if (orderRow.user_id) {
         const { data: u } = await supabase
@@ -167,9 +170,7 @@ export default function SellerOrderDetailPage() {
       .eq('id', item.id)
     if (!error) {
       setItems((arr) =>
-        arr.map((r) =>
-          r.id === item.id ? { ...r, tracking_number: value } : r,
-        ),
+        arr.map((r) => (r.id === item.id ? { ...r, tracking_number: value } : r)),
       )
     }
   }
@@ -190,8 +191,31 @@ export default function SellerOrderDetailPage() {
   const copyOrderId = () => {
     if (!order) return
     navigator.clipboard?.writeText(order.id)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    setCopiedId(true)
+    setTimeout(() => setCopiedId(false), 1500)
+  }
+
+  const copyPhone = (phone: string) => {
+    navigator.clipboard?.writeText(phone)
+    setCopiedPhone(true)
+    setTimeout(() => setCopiedPhone(false), 1500)
+  }
+
+  const copyAddress = () => {
+    if (!order) return
+    const a = order.shipping_address ?? {}
+    const lines = [
+      [a.first_name, a.last_name].filter(Boolean).join(' '),
+      order.shipping_method !== 'center_pickup' ? a.street_address : null,
+      [a.city, a.postal_code].filter(Boolean).join(', '),
+      a.country,
+      a.phone,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    navigator.clipboard?.writeText(lines)
+    setCopiedAddress(true)
+    setTimeout(() => setCopiedAddress(false), 1500)
   }
 
   if (loading) {
@@ -207,15 +231,15 @@ export default function SellerOrderDetailPage() {
       <div className="max-w-md mx-auto py-24 text-center">
         <h1 className="text-2xl font-semibold">Order not found</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Either this order doesn&apos;t exist or none of its items are from
-          your shop.
+          Either this order doesn&apos;t exist or none of its items are
+          Souqly-owned.
         </p>
         <Link
-          href="/dashboard/orders"
+          href="/admin/orders"
           className="inline-flex items-center mt-6 text-sm hover:text-brand"
         >
           <ArrowLeft className="w-4 h-4 mr-1.5" />
-          Back to orders
+          Back to platform orders
         </Link>
       </div>
     )
@@ -237,29 +261,32 @@ export default function SellerOrderDetailPage() {
         minute: '2-digit',
       })
     : '—'
-  const sellerSubtotal = items.reduce(
+  const platformSubtotal = items.reduce(
     (s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0),
     0,
   )
   const allShipped = items.every(
-    (i) => i.fulfillment_status === 'shipped' || i.fulfillment_status === 'delivered',
+    (i) =>
+      i.fulfillment_status === 'shipped' || i.fulfillment_status === 'delivered',
   )
   const allPending = items.every((i) => i.fulfillment_status === 'pending')
+  const phone = address.phone as string | undefined
 
   return (
     <div className="space-y-6 max-w-5xl">
       <Link
-        href="/dashboard/orders"
+        href="/admin/orders"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="w-4 h-4 mr-1.5" />
-        All orders
+        All platform orders
       </Link>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1">
-            Order
+          <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1 inline-flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3" />
+            Souqly · Platform order
           </p>
           <h1 className="text-3xl font-semibold tracking-tight inline-flex items-center gap-2">
             #{order.id.slice(0, 8)}
@@ -270,7 +297,7 @@ export default function SellerOrderDetailPage() {
             >
               <Copy className="w-4 h-4" />
             </button>
-            {copied && <span className="text-xs text-success">Copied</span>}
+            {copiedId && <span className="text-xs text-success">Copied</span>}
           </h1>
           <p className="text-sm text-muted-foreground mt-1 inline-flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" />
@@ -302,8 +329,8 @@ export default function SellerOrderDetailPage() {
         </div>
       </div>
 
-      {/* Action banner for COD — call-to-confirm is the most useful action */}
-      {address.phone && allPending && (
+      {/* Call-to-confirm banner */}
+      {phone && allPending && (
         <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <Phone className="w-5 h-5 text-warning shrink-0 mt-0.5" />
@@ -316,12 +343,27 @@ export default function SellerOrderDetailPage() {
               </p>
             </div>
           </div>
-          <a href={`tel:${address.phone}`}>
-            <Button size="sm">
-              <Phone className="w-3.5 h-3.5 mr-1.5" />
-              Call {address.phone}
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => copyPhone(phone)}>
+              {copiedPhone ? (
+                <>
+                  <Check className="w-3.5 h-3.5 mr-1.5" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 mr-1.5" />
+                  Copy number
+                </>
+              )}
             </Button>
-          </a>
+            <a href={`tel:${phone}`}>
+              <Button size="sm">
+                <Phone className="w-3.5 h-3.5 mr-1.5" />
+                Call {phone}
+              </Button>
+            </a>
+          </div>
         </div>
       )}
 
@@ -349,18 +391,52 @@ export default function SellerOrderDetailPage() {
                   </Link>
                 )}
               </div>
-              {address.phone && (
+              {phone && (
                 <div>
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                     Phone
                   </p>
-                  <a
-                    href={`tel:${address.phone}`}
-                    className="text-sm font-medium mt-0.5 inline-flex items-center gap-1.5 hover:text-brand"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                    {address.phone}
-                  </a>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <a
+                      href={`tel:${phone}`}
+                      className="text-sm font-medium inline-flex items-center gap-1.5 hover:text-brand"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                      {phone}
+                    </a>
+                    <button
+                      onClick={() => copyPhone(phone)}
+                      title="Copy phone number"
+                      className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {copiedPhone ? (
+                        <Check className="w-3.5 h-3.5 text-success" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <a href={`tel:${phone}`}>
+                      <Button size="sm" variant="outline" className="h-7 text-xs">
+                        <Phone className="w-3 h-3 mr-1" />
+                        Call
+                      </Button>
+                    </a>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => copyPhone(phone)}
+                    >
+                      {copiedPhone ? (
+                        <Check className="w-3 h-3 mr-1" />
+                      ) : (
+                        <Copy className="w-3 h-3 mr-1" />
+                      )}
+                      Copy
+                    </Button>
+                  </div>
                 </div>
               )}
               {buyer?.email && (
@@ -380,7 +456,7 @@ export default function SellerOrderDetailPage() {
             </div>
           </div>
 
-          {/* Shipping / delivery card */}
+          {/* Delivery / Shipping address card */}
           <div className="rounded-xl border border-border bg-card p-5">
             <h2 className="font-semibold mb-3 inline-flex items-center gap-2">
               <MapPin className="w-4 h-4 text-muted-foreground" />
@@ -413,37 +489,29 @@ export default function SellerOrderDetailPage() {
                 {order.shipping_method !== 'center_pickup' && address.street_address && (
                   <p>{address.street_address}</p>
                 )}
-                <p>
-                  {[address.city, address.postal_code].filter(Boolean).join(', ')}
-                </p>
+                <p>{[address.city, address.postal_code].filter(Boolean).join(', ')}</p>
                 {address.country && <p>{address.country}</p>}
                 <div className="mt-3 flex gap-2">
-                  {address.phone && (
-                    <a href={`tel:${address.phone}`}>
+                  {phone && (
+                    <a href={`tel:${phone}`}>
                       <Button size="sm" variant="outline">
                         <Phone className="w-3.5 h-3.5 mr-1.5" />
                         Call
                       </Button>
                     </a>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const lines = [
-                        [address.first_name, address.last_name].filter(Boolean).join(' '),
-                        address.street_address,
-                        [address.city, address.postal_code].filter(Boolean).join(', '),
-                        address.country,
-                        address.phone,
-                      ]
-                        .filter(Boolean)
-                        .join('\n')
-                      navigator.clipboard?.writeText(lines)
-                    }}
-                  >
-                    <Copy className="w-3.5 h-3.5 mr-1.5" />
-                    Copy address
+                  <Button size="sm" variant="outline" onClick={copyAddress}>
+                    {copiedAddress ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 mr-1.5" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 mr-1.5" />
+                        Copy address
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -454,10 +522,10 @@ export default function SellerOrderDetailPage() {
             )}
           </div>
 
-          {/* Items the seller is responsible for */}
+          {/* Platform items */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="px-5 py-3 border-b border-border">
-              <h2 className="font-semibold">Your items in this order</h2>
+              <h2 className="font-semibold">Souqly items in this order</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Update status and tracking per item.
               </p>
@@ -546,24 +614,23 @@ export default function SellerOrderDetailPage() {
           </div>
         </div>
 
-        {/* Sidebar — your earnings + payment */}
         <aside className="space-y-5 lg:sticky lg:top-20 lg:self-start">
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3 inline-flex items-center gap-1.5">
               <Receipt className="w-3.5 h-3.5" />
-              Your earnings (this order)
+              Platform revenue (this order)
             </h3>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
                 {items.reduce((s, i) => s + (i.quantity ?? 0), 0)} items
               </span>
               <span className="text-lg font-semibold">
-                {formatPrice(sellerSubtotal)}
+                {formatPrice(platformSubtotal)}
               </span>
             </div>
             <p className="text-[11px] text-muted-foreground mt-2">
               Order total ({formatPrice(order.total_price ?? 0)}) may include
-              items from other sellers.
+              items from independent sellers.
             </p>
           </div>
 
@@ -572,9 +639,7 @@ export default function SellerOrderDetailPage() {
               <Wallet className="w-3.5 h-3.5" />
               Payment
             </h3>
-            <p className="text-sm">
-              {paymentLabel(order.payment_method)}
-            </p>
+            <p className="text-sm">{paymentLabel(order.payment_method)}</p>
             {order.payment_method === 'cod' && (
               <p className="text-xs text-muted-foreground mt-1">
                 The courier will collect cash from the buyer on delivery.
